@@ -45,7 +45,7 @@ def load_model():
     global pipeline, model_meta
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-
+    
     # Resolve alias to get version metadata
     client = mlflow.MlflowClient()
     target = client.get_model_version_by_alias(MODEL_REGISTRY_NAME, MODEL_ALIAS)
@@ -176,7 +176,7 @@ class BatchResult(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-MLFLOW_TRACKING_URI = "http://localhost:5050"
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5050")
 MODEL_ALIAS = os.getenv("MODEL_ALIAS", "champion")
 MODEL_REGISTRY_NAME = "shopper_best_model"
 INTERVENTION_THRESHOLD = 0.30  # fallback if meta not loaded
