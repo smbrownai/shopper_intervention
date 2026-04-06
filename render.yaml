@@ -2,6 +2,6 @@ services:
   - type: web
     name: shopper-intervention-api
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip setuptools && pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     plan: free
