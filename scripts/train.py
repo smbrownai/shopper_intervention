@@ -3,9 +3,10 @@ train.py — Train and evaluate three classifiers on the online shoppers intenti
 Logs every run to MLflow, saves the best model for the FastAPI server.
 
 Models:
-  1. Logistic Regression  (linear baseline — note: task is classification, not regression)
-  2. Decision Tree
-  3. Random Forest
+  1. Logistic Regression (x3)
+  2. Decision Tree (x3)
+  3. Random Forest (x3)
+  4. Gradient Boosting and XGBoost
 
 Usage:
     python scripts/train.py [--data data/online_shoppers_intention.csv]
@@ -25,6 +26,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.metrics import (
     accuracy_score,
@@ -104,6 +107,16 @@ def build_model_configs():
             RandomForestClassifier(n_estimators=300, max_depth=None, max_features="sqrt", class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE),
             {"n_estimators": 300, "max_depth": "None", "max_features": "sqrt"},
         ),
+        (
+    		"GradientBoosting",
+    		GradientBoostingClassifier(n_estimators=200, learning_rate=0.05, max_depth=4, min_samples_leaf=10, subsample=0.8, random_state=RANDOM_STATE),
+		    {"n_estimators": 200, "learning_rate": 0.05, "max_depth": 4, "subsample": 0.8},
+		),
+		(
+ 		   "XGBoost",
+		    XGBClassifier(n_estimators=200, learning_rate=0.05, max_depth=4, subsample=0.8, colsample_bytree=0.8, scale_pos_weight=5, eval_metric="auc", random_state=RANDOM_STATE, verbosity=0),
+    		{"n_estimators": 200, "learning_rate": 0.05, "max_depth": 4, "subsample": 0.8, "colsample_bytree": 0.8, "scale_pos_weight": 5},
+		),
     ]
 
 

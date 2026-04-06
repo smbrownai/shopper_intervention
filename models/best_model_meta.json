@@ -1,6 +1,6 @@
 {
-  "model_name": "RF_deep",
-  "run_id": "51230832cb03451dbf077bdc9ddf68fa",
-  "roc_auc": 0.9187828481273427,
+  "model_name": "XGBoost",
+  "run_id": "a332c98fe8194e3d9a2e4c8acdff4f25",
+  "roc_auc": 0.9304825597170162,
   "intervention_threshold": 0.3
 }
