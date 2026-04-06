@@ -1,6 +1,6 @@
 {
   "model_name": "XGBoost",
-  "run_id": "b2e5a450df9e4a59966db4f60650573a",
+  "run_id": "24425001c05f4fbcbdd69f446a30d4d3",
   "roc_auc": 0.9304825597170162,
   "intervention_threshold": 0.3
 }
