@@ -39,6 +39,8 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from sklearn.pipeline import Pipeline
+import dagshub
+dagshub.init(repo_owner='smbrownai', repo_name='shopper_intervention', mlflow=True)
 
 # Allow running from project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
