@@ -100,7 +100,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    load_model()
+    try:
+        load_model()
+    except Exception as e:
+        import traceback
+        print(f"❌ Model load failed: {e}")
+        traceback.print_exc()
 
 
 # ---------------------------------------------------------------------------
