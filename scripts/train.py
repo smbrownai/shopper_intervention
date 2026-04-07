@@ -346,19 +346,27 @@ def main():
 
     client = mlflow.MlflowClient()
 
-    mv = mlflow.register_model(f"runs:/{best_run_id}/model", MODEL_REGISTRY_NAME)
+    # Create model version directly using the client
+    mv = client.create_model_version(
+        name=MODEL_REGISTRY_NAME,
+        source=f"runs:/{best_run_id}/model",
+        run_id=best_run_id,
+    )
     client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", mv.version)
     client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "roc_auc", str(best_auc))
     client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "model_name", best_name)
 
-    sorted_results = sorted(results, key=lambda r: -r[2])
     if len(sorted_results) > 1:
         second_best_name, second_best_run_id, second_best_auc, _ = sorted_results[1]
-        mv2 = mlflow.register_model(f"runs:/{second_best_run_id}/model", MODEL_REGISTRY_NAME)
+        mv2 = client.create_model_version(
+            name=MODEL_REGISTRY_NAME,
+            source=f"runs:/{second_best_run_id}/model",
+            run_id=second_best_run_id,
+        )
         client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", mv2.version)
         client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "roc_auc", str(second_best_auc))
         client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "model_name", second_best_name)
-
+    
     print("\n📊 Model Leaderboard (Test ROC-AUC):")
     print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Run ID'}")
     print(f"  {'-'*22} {'-'*10}  {'-'*36}")
