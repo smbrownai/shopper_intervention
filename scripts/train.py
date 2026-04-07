@@ -348,6 +348,8 @@ def main():
     best = max(results, key=lambda r: r[2])
     best_name, best_run_id, best_auc, best_pipeline = best
 
+    sorted_results = sorted(results, key=lambda r: -r[2])
+    
     client = mlflow.MlflowClient()
 
     # Create model version directly using the client
