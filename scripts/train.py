@@ -355,21 +355,20 @@ def main():
 
     # Find the version that was just registered for the best run
     client = mlflow.MlflowClient()
-    versions = client.search_model_versions(f"name='{MODEL_REGISTRY_NAME}'")
-    best_version = next(v for v in versions if v.run_id == best_run_id)
 
-    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", best_version.version)
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version.version, "roc_auc", str(best_auc))
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version.version, "model_name", best_name)
+    # Register and tag champion
+    mv = mlflow.register_model(f"runs:/{best_run_id}/model", MODEL_REGISTRY_NAME)
+    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", mv.version)
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "roc_auc", str(best_auc))
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "model_name", best_name)
 
-    sorted_results = sorted(results, key=lambda r: -r[2])
+    # Register and tag challenger
     if len(sorted_results) > 1:
-        second_best = sorted_results[1]
-        second_version = next(v for v in versions if v.run_id == second_best[1])
-        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", second_version.version)
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "roc_auc", str(second_best_auc))
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "model_name", second_best_name)
-
+        second_best_name, second_best_run_id, second_best_auc, _ = sorted_results[1]
+        mv2 = mlflow.register_model(f"runs:/{second_best_run_id}/model", MODEL_REGISTRY_NAME)
+        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", mv2.version)
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "roc_auc", str(second_best_auc))
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "model_name", second_best_name)
     
     print("\n📊 Model Leaderboard (Test ROC-AUC):")
     print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Run ID'}")
