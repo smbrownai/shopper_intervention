@@ -31,6 +31,7 @@ META_PATH = ROOT / "models" / "best_model_meta.json"
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 API_BASE = "https://shopper-intervention.onrender.com"
+st.sidebar.caption(f"API: {API_URL}")
 
 # ---------------------------------------------------------------------------
 # Page config
