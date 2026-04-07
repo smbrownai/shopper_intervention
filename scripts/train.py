@@ -41,13 +41,13 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-
-# Set DagsHub artifact store credentials
-os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME", "")
-os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD", "")
-os.environ["MLFLOW_HTTP_REQUEST_HEADER_username"] = os.getenv("MLFLOW_TRACKING_USERNAME", "")
-os.environ["MLFLOW_HTTP_REQUEST_HEADER_password"] = os.getenv("MLFLOW_TRACKING_PASSWORD", "")
+import dagshub
+dagshub.init(
+    repo_owner='smbrownai',
+    repo_name='shopper_intervention',
+    mlflow=True,
+    token=os.getenv("DAGSHUB_TOKEN")
+)
 
 # Allow running from project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -272,9 +272,10 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         mlflow.sklearn.log_model(
             pipeline,
             artifact_path="model",
+            registered_model_name=None,
         )
-
-       # Register while run is still open
+        
+        # Register while run is still open
         run_id = run.info.run_id
         print(f"  MLflow run_id: {run_id}")
         return run_id, metrics["roc_auc"], pipeline
