@@ -262,11 +262,11 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
             importances = dict(zip(feat_names, classifier.feature_importances_.tolist()))
             mlflow.log_dict(importances, "feature_importances.json")
 
-        # Log model
+        # Log model — register directly instead of separately
         mlflow.sklearn.log_model(
             pipeline,
             artifact_path="model",
-            registered_model_name=None,  # register best separately
+            registered_model_name=MODEL_REGISTRY_NAME,  # ← register here
             input_example=X_train.iloc[:3],
         )
 
@@ -353,18 +353,24 @@ def main():
 
     save_best_model_metadata(best_name, best_run_id, best_auc, models_dir)
 
+    # Find the version that was just registered for the best run
     client = mlflow.MlflowClient()
-    mv = mlflow.register_model(f"runs:/{best_run_id}/model", MODEL_REGISTRY_NAME)
-    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", mv.version)
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "roc_auc", str(best_auc))
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "model_name", best_name)
+    versions = client.search_model_versions(f"name='{MODEL_REGISTRY_NAME}'")
+    best_version = next(v for v in versions if v.run_id == best_run_id)
+
+    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", best_version.version)
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version.version, "roc_auc", str(best_auc))
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version.version, "model_name", best_name)
 
     sorted_results = sorted(results, key=lambda r: -r[2])
     if len(sorted_results) > 1:
         second_best = sorted_results[1]
-        mv2 = mlflow.register_model(f"runs:/{second_best[1]}/model", MODEL_REGISTRY_NAME)
-        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", mv2.version)
+        second_version = next(v for v in versions if v.run_id == second_best[1])
+        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", second_version.version)
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "roc_auc", str(best_auc))
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "model_name", best_name)
 
+    
     print("\n📊 Model Leaderboard (Test ROC-AUC):")
     print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Run ID'}")
     print(f"  {'-'*22} {'-'*10}  {'-'*36}")
