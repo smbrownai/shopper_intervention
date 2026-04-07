@@ -263,17 +263,19 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
             importances = dict(zip(feat_names, classifier.feature_importances_.tolist()))
             mlflow.log_dict(importances, "feature_importances.json")
 
-        # Log model — register directly instead of separately
+        # Log model and register immediately while run is still active
         mlflow.sklearn.log_model(
             pipeline,
             artifact_path="model",
             registered_model_name=None,
         )
-        time.sleep(10)
-
+        
+        # Register while run is still open
         run_id = run.info.run_id
+        mv = mlflow.register_model(f"runs:/{run_id}/model", MODEL_REGISTRY_NAME)
+        
         print(f"  MLflow run_id: {run_id}")
-        return run_id, metrics["roc_auc"], pipeline
+        return run_id, metrics["roc_auc"], pipeline, mv.version
 
 
 def save_best_model_metadata(model_name: str, run_id: str, roc_auc: float, models_dir: Path):
@@ -335,42 +337,27 @@ def main():
 
     results = []
     for model_name, estimator, params in model_configs:
-        run_id, roc_auc, pipeline = train_and_log(
+        run_id, roc_auc, pipeline, version = train_and_log(
             model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor
         )
-        results.append((model_name, run_id, roc_auc, pipeline))
+        results.append((model_name, run_id, roc_auc, pipeline, version))
 
     best = max(results, key=lambda r: r[2])
-    best_name, best_run_id, best_auc, best_pipeline = best
+    best_name, best_run_id, best_auc, best_pipeline, best_version = best
 
-    print(f"\n{'='*60}")
-    print(f"  🏆 BEST MODEL: {best_name}  (ROC-AUC = {best_auc:.4f})")
-    print(f"{'='*60}")
-
-    import joblib
-    model_path = models_dir / "best_model.pkl"
-    joblib.dump(best_pipeline, model_path)
-    print(f"  Saved pipeline → {model_path}")
-
-    save_best_model_metadata(best_name, best_run_id, best_auc, models_dir)
-
-    # Find the version that was just registered for the best run
+    # Set aliases using version numbers directly — no search needed
     client = mlflow.MlflowClient()
+    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", best_version)
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version, "roc_auc", str(best_auc))
+    client.set_model_version_tag(MODEL_REGISTRY_NAME, best_version, "model_name", best_name)
 
-    # Register and tag champion
-    mv = mlflow.register_model(f"runs:/{best_run_id}/model", MODEL_REGISTRY_NAME)
-    client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", mv.version)
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "roc_auc", str(best_auc))
-    client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "model_name", best_name)
-
-    # Register and tag challenger
+    sorted_results = sorted(results, key=lambda r: -r[2])
     if len(sorted_results) > 1:
-        second_best_name, second_best_run_id, second_best_auc, _ = sorted_results[1]
-        mv2 = mlflow.register_model(f"runs:/{second_best_run_id}/model", MODEL_REGISTRY_NAME)
-        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", mv2.version)
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "roc_auc", str(second_best_auc))
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, mv2.version, "model_name", second_best_name)
-    
+        second_best_name, second_best_run_id, second_best_auc, _, second_version = sorted_results[1]
+        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", second_version)
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version, "roc_auc", str(second_best_auc))
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version, "model_name", second_best_name)    
+
     print("\n📊 Model Leaderboard (Test ROC-AUC):")
     print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Run ID'}")
     print(f"  {'-'*22} {'-'*10}  {'-'*36}")
