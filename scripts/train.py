@@ -39,7 +39,7 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 
 import dagshub.auth
-dagshub.auth.add_app_token(token=os.getenv("DAGSHUB_TOKEN", ""), host="dagshub.com")
+dagshub.auth.add_app_token(token=os.getenv("DAGSHUB_TOKEN", ""))
 import dagshub
 dagshub.init(repo_owner='smbrownai', repo_name='shopper_intervention', mlflow=True)
 
@@ -265,7 +265,7 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         # Log model and register immediately while run is still active
         mlflow.sklearn.log_model(
             pipeline,
-            name="model",
+            artifact_path="model",
             registered_model_name=None,
         )
         
