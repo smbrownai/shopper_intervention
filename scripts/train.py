@@ -271,8 +271,7 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         # Log model and register immediately while run is still active
         mlflow.sklearn.log_model(
             pipeline,
-            name="model",
-            registered_model_name=None,
+            artifact_path="model",
         )
 
        # Register while run is still open
@@ -357,6 +356,7 @@ def main():
         name=MODEL_REGISTRY_NAME,
         source=f"runs:/{best_run_id}/model",
         run_id=best_run_id,
+        await_creation_for=0,  # ← don't wait, just create
     )
     client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", mv.version)
     client.set_model_version_tag(MODEL_REGISTRY_NAME, mv.version, "roc_auc", str(best_auc))
