@@ -266,10 +266,14 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         # Log model and register immediately while run is still active
         mlflow.sklearn.log_model(
             pipeline,
-            artifact_path="model",
+            name="model",
             registered_model_name=None,
         )
-        
+
+        # Inside train_and_log, after log_model, get the logged model info
+        logged_model = mlflow.last_active_run().info
+        model_uri = f"runs
+
         # Register while run is still open
         run_id = run.info.run_id
         mv = mlflow.register_model(f"runs:/{run_id}/model", MODEL_REGISTRY_NAME)
