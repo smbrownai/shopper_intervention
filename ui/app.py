@@ -482,9 +482,16 @@ with tab5:
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.metric("Current Model", model_meta.get("model_name", "—"))
-        st.metric("ROC-AUC", f"{model_meta.get('roc_auc', 0):.4f}")
-        st.metric("Version", model_meta.get("version", "—"))
+        try:
+            info = requests.get(f"{API_URL}/model-info").json()
+            st.metric("Current Model", info.get("model_name", "—"))
+            st.metric("ROC-AUC", f"{info.get('roc_auc', 0):.4f}")
+            st.metric("Version", info.get("version", "—"))
+        except Exception:
+            st.metric("Current Model", "—")
+            st.metric("ROC-AUC", "—")
+            st.metric("Version", "—")
+            st.caption("⚠️ Could not reach API")
 
     with col2:
         st.warning("⚠️ Retraining will replace the current champion model if the new run scores higher.")
