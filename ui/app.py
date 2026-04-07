@@ -14,6 +14,7 @@ Run with:
 import sys
 import json
 import io
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +28,7 @@ ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "online_shoppers_intention.csv"
 META_PATH = ROOT / "models" / "best_model_meta.json"
 
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 API_BASE = "https://shopper-intervention.onrender.com"
 
 # ---------------------------------------------------------------------------
@@ -107,11 +109,12 @@ with st.sidebar:
     st.divider()
     st.markdown("**Navigation**")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Dataset Explorer",
     "🎯 Score a Session",
     "📋 Batch Scoring",
     "📈 Model Performance",
+    "🔁 Retrain Model"
 ])
 
 # ===========================================================================
@@ -466,3 +469,50 @@ with tab4:
     st.subheader("Run MLflow UI")
     st.code("mlflow ui --port 5050", language="bash")
     st.caption("Then open http://localhost:5050 to compare all experiment runs side by side.")
+
+
+# ===========================================================================
+# TAB 5 — Retrain Model
+# ===========================================================================
+
+with tab5:
+    st.header("Retrain Model")
+    st.caption("Kick off a new training run against the latest data and reload the champion model.")
+
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        st.metric("Current Model", model_meta.get("model_name", "—"))
+        st.metric("ROC-AUC", f"{model_meta.get('roc_auc', 0):.4f}")
+        st.metric("Version", model_meta.get("version", "—"))
+
+    with col2:
+        st.warning("⚠️ Retraining will replace the current champion model if the new run scores higher.")
+        
+        if st.button("🚀 Start Retraining", type="primary"):
+            response = requests.post(f"{API_URL}/retrain")
+            result = response.json()
+
+            if result["status"] == "already_running":
+                st.info("⏳ A training run is already in progress.")
+            else:
+                st.info("Training started — checking for completion every 5 seconds...")
+                
+                with st.spinner("Training in progress..."):
+                    while True:
+                        time.sleep(5)
+                        status = requests.get(f"{API_URL}/retrain-status").json()
+                        if not status["running"]:
+                            break
+
+                if status["last_result"] == "success":
+                    st.success(
+                        f"✅ Retraining complete!\n\n"
+                        f"**Model:** {status['model']}  \n"
+                        f"**ROC-AUC:** {status['roc_auc']:.4f}  \n"
+                        f"**Version:** {status['version']}"
+                    )
+                    st.balloons()
+                else:
+                    st.error(f"❌ Training failed: {status['last_result']}")
+                    

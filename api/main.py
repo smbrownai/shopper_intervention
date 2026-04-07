@@ -25,6 +25,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+import asyncio
+import subprocess
+
 # Allow imports from project root
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
@@ -107,6 +110,60 @@ async def startup_event():
         print(f"❌ Model load failed: {e}")
         traceback.print_exc()
 
+
+async def run_training():
+    """Run train.py as a subprocess and reload the model when done."""
+    print("🔄 Starting training run...")
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: subprocess.run(
+            ["python", "scripts/train.py"],
+            capture_output=True,
+            text=True
+        )
+    )
+    if result.returncode == 0:
+        print("✅ Training complete — reloading model...")
+        load_model()
+    else:
+        print(f"❌ Training failed:\n{result.stderr}")
+
+# Training state — lets Streamlit poll status
+training_status = {"running": False, "last_result": None}
+
+@app.post("/retrain", tags=["Model"])
+async def retrain():
+    """Kick off a background training run. Returns immediately."""
+    if training_status["running"]:
+        return {"status": "already_running"}
+    
+    training_status["running"] = True
+    training_status["last_result"] = None
+
+    async def _run():
+        try:
+            await run_training()
+            training_status["last_result"] = "success"
+        except Exception as e:
+            training_status["last_result"] = f"error: {e}"
+        finally:
+            training_status["running"] = False
+
+    asyncio.create_task(_run())
+    return {"status": "training_started"}
+
+
+@app.get("/retrain-status", tags=["Model"])
+async def retrain_status():
+    """Poll this to check if training is still running."""
+    return {
+        "running": training_status["running"],
+        "last_result": training_status["last_result"],
+        "model": model_meta.get("model_name"),
+        "roc_auc": model_meta.get("roc_auc"),
+        "version": model_meta.get("version"),
+    }
 
 # ---------------------------------------------------------------------------
 # Schemas
