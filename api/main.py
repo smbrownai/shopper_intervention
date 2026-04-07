@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 import asyncio
@@ -359,4 +360,12 @@ async def retrain_debug():
         "stdout": result.stdout[-3000:],
         "stderr": result.stderr[-3000:],
     }
-    
+
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
+async def root():
+    return {
+        "status": "ok",
+        "model": model_meta.get("model_name", "not loaded"),
+        "roc_auc": model_meta.get("roc_auc"),
+        "intervention_threshold": model_meta.get("intervention_threshold", INTERVENTION_THRESHOLD),
+    }
