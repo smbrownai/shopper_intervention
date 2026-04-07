@@ -1,6 +1,14 @@
 {
-  "model_name": "XGBoost",
-  "run_id": "9d265b82b06d4c30b91f7c03a7888c64",
-  "roc_auc": 0.9304825597170162,
-  "intervention_threshold": 0.3
+  "champion": {
+    "model_name": "XGBoost",
+    "run_id": "3fe56d9dd8a84f26838b8ccae8be59b9",
+    "roc_auc": 0.9304825597170162,
+    "intervention_threshold": 0.3
+  },
+  "challenger": {
+    "model_name": "GradientBoosting",
+    "run_id": "7522b2ca874a4ff28fd9e9f969e2abc7",
+    "roc_auc": 0.9271638311342465,
+    "intervention_threshold": 0.3
+  }
 }
