@@ -42,11 +42,11 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 
 import dagshub
+os.environ["DAGSHUB_USER_TOKEN"] = os.getenv("DAGSHUB_TOKEN", "")
 dagshub.init(
     repo_owner='smbrownai',
     repo_name='shopper_intervention',
-    mlflow=True,
-    token=os.getenv("DAGSHUB_TOKEN")
+    mlflow=True
 )
 
 # Allow running from project root
