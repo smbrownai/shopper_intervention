@@ -39,8 +39,10 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from sklearn.pipeline import Pipeline
-import dagshub
-dagshub.init(repo_owner='smbrownai', repo_name='shopper_intervention', mlflow=True)
+
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
+os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
+os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
 # Allow running from project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
