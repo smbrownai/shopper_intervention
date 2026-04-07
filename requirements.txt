@@ -1,5 +1,5 @@
 setuptools>=65.0.0
-dagshub
+dagshub==0.6.9
 
 # UI
 streamlit==1.37.1
