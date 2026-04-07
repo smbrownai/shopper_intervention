@@ -266,7 +266,7 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         mlflow.sklearn.log_model(
             pipeline,
             artifact_path="model",
-            registered_model_name=MODEL_REGISTRY_NAME,  # ← register here
+            registered_model_name=None,
             input_example=X_train.iloc[:3],
         )
 
@@ -367,8 +367,8 @@ def main():
         second_best = sorted_results[1]
         second_version = next(v for v in versions if v.run_id == second_best[1])
         client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", second_version.version)
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "roc_auc", str(best_auc))
-        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "model_name", best_name)
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "roc_auc", str(second_best_auc))
+        client.set_model_version_tag(MODEL_REGISTRY_NAME, second_version.version, "model_name", second_best_name)
 
     
     print("\n📊 Model Leaderboard (Test ROC-AUC):")
