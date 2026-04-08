@@ -97,8 +97,8 @@ def call_predict_batch(sessions: list[dict], use_challenger: bool = False):
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.title("🛒 Shopper Intervention")
-    st.caption("Predict likely buyers for special promo")
+    st.title("🛒 Attention Kohl-Mart Shoppers!")
+    st.caption("Predict sessions for special promo")
     st.caption("BANA 7075 Group 2 Winter 2026")
     st.divider()
 
