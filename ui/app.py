@@ -566,12 +566,13 @@ with tab3:
             st.divider()
             st.subheader("📊 Batch Score Analysis")
             
+            # --- Row 1: Probability Distribution + Confidence Breakdown ---
             col_left, col_right = st.columns(2)
             
-            # 1. Purchase Probability Distribution
+            probs = [r["purchase_probability"] for r in results_list]
+            intervene_flags = [r["intervene"] for r in results_list]
+            
             with col_left:
-                probs = [r["purchase_probability"] for r in results_list]
-                intervene_flags = [r["intervene"] for r in results_list]
                 dist_df = pd.DataFrame({
                     "Purchase Probability": probs,
                     "Status": ["Intervene" if i else "No Intervention" for i in intervene_flags]
@@ -596,7 +597,6 @@ with tab3:
                 fig_dist.update_layout(height=350)
                 st.plotly_chart(fig_dist, use_container_width=True)
             
-            # 2. Confidence Breakdown
             with col_right:
                 confidence_counts = pd.Series(
                     [r["confidence"] for r in results_list]
@@ -614,7 +614,51 @@ with tab3:
                 fig_conf.update_layout(height=350, showlegend=False)
                 st.plotly_chart(fig_conf, use_container_width=True)
             
-            # 3. Intervention Rate by Threshold
+            # --- Row 2: Score Distribution by Prediction + PageValues Scatter ---
+            col_left2, col_right2 = st.columns(2)
+            
+            with col_left2:
+                box_df = pd.DataFrame({
+                    "Purchase Probability": probs,
+                    "Predicted Class": ["Purchase" if r["prediction"] == 1 else "No Purchase" for r in results_list]
+                })
+                fig_box = px.box(
+                    box_df,
+                    x="Predicted Class",
+                    y="Purchase Probability",
+                    color="Predicted Class",
+                    color_discrete_map={"Purchase": "#2ecc71", "No Purchase": "#e74c3c"},
+                    title="Score Distribution by Predicted Class",
+                    points="all",
+                )
+                fig_box.update_layout(height=350, showlegend=False)
+                st.plotly_chart(fig_box, use_container_width=True)
+            
+            with col_right2:
+                scatter_df = batch_df.copy().reset_index(drop=True)
+                scatter_df["purchase_probability"] = probs
+                scatter_df["Status"] = ["Intervene" if i else "No Intervention" for i in intervene_flags]
+                fig_scatter = px.scatter(
+                    scatter_df,
+                    x="PageValues",
+                    y="purchase_probability",
+                    color="Status",
+                    color_discrete_map={"Intervene": "#e74c3c", "No Intervention": "#2ecc71"},
+                    title="Page Values vs Purchase Probability",
+                    labels={"purchase_probability": "Purchase Probability"},
+                    opacity=0.7,
+                )
+                fig_scatter.add_hline(
+                    y=threshold_data.get("lower", 0.30),
+                    line_dash="dash",
+                    line_color="orange",
+                    annotation_text="Threshold",
+                    annotation_position="right"
+                )
+                fig_scatter.update_layout(height=350)
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            # --- Row 3: Threshold Sensitivity ---
             st.subheader("🎚️ Threshold Sensitivity")
             st.caption("How intervention volume changes across different threshold settings — useful for tuning business decisions.")
             
