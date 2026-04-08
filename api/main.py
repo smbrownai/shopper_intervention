@@ -304,7 +304,7 @@ def _predict_session(session: SessionFeatures, use_challenger: bool = False) -> 
         prediction=prediction,
         intervene=intervene,
         intervention_threshold=threshold_config["lower"],
-        model_name=model_name,
+        model_name=active_name,
         confidence=confidence,
         inference_ms=elapsed_ms
     )
