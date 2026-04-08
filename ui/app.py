@@ -653,6 +653,8 @@ with tab5:
     with col2:
         st.warning("⚠️ Retraining replaces the champion model if the new run scores higher. Note: Each training run updates two sources — a local metadata file (best_model_meta.json) that powers this dashboard, and the MLflow Model Registry on DagHub where champion and challenger versions are tagged with aliases for lineage tracking. These are kept in sync automatically by the training pipeline, but manual changes in the MLflow Registry will not be reflected here until the next training run.")
 
+    overrides = {}
+    
     st.divider()
     st.subheader("Preprocessing Options")
     
@@ -690,8 +692,6 @@ with tab5:
     st.divider()
     st.subheader("Hyperparameter Overrides")
     st.caption("Adjust key parameters per model. Leave as-is to use defaults.")
-
-    overrides = {}
 
     with st.expander("Logistic Regression", expanded=False):
         lr_c = st.slider("C (regularization)", 0.001, 10.0, 1.0, step=0.01, key="lr_c")
