@@ -30,7 +30,8 @@ DATA_PATH = ROOT / "data" / "online_shoppers_intention.csv"
 META_PATH = ROOT / "models" / "best_model_meta.json"
 
 API_URL = os.getenv("API_URL", "https://shopper-intervention.onrender.com")
-
+# Safe default — overwritten by API if available
+threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -60,9 +61,9 @@ def load_data():
 def api_health():
     try:
         r = requests.get(f"{API_URL}/", timeout=3)
-        return r.status_code == 200, r.json()
-    except Exception:
-        return False, {}
+        return r.status_code == 200, r.json(), None
+    except Exception as e:
+        return False, {}, str(e)
 
 
 def call_predict(payload: dict):
@@ -149,7 +150,7 @@ with st.sidebar:
     st.markdown("**Debug**")
     st.sidebar.caption(f"API: {API_URL}")
 
-    healthy, health_data = api_health()
+    healthy, health_data, health_error = api_health()
     if healthy:
         try:
             threshold_data = requests.get(f"{API_URL}/threshold", timeout=3).json()
@@ -160,12 +161,12 @@ with st.sidebar:
             threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
 
         st.success(f"API online ✅")
-        st.caption(f"Model: **{health_data.get('model', '?')}**")
-        st.caption(f"ROC-AUC: **{health_data.get('roc_auc', '?')}**")
-        if threshold_data.get("mode", "lower") == "range":
-            st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%} – {threshold_data.get('upper', 0.70):.0%}** (range)")
-        else:
-            st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%}** (below)")
+        #st.caption(f"Model: **{health_data.get('model', '?')}**")
+        #st.caption(f"ROC-AUC: **{health_data.get('roc_auc', '?')}**")
+        #if threshold_data.get("mode", "lower") == "range":
+        #    st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%} – {threshold_data.get('upper', 0.70):.0%}** (range)")
+        #else:
+        #    st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%}** (below)")
 
         with st.expander("📦 Model Metadata", expanded=False):
             try:
@@ -192,7 +193,18 @@ with st.sidebar:
             st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
             st.markdown("[🐙 GitHub Repository](https://github.com/smbrownai/shopper_intervention)")
             st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopper_intervention)")
-    
+
+    else:
+        threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
+        st.error("API offline ❌")
+        st.caption(f"Error: `{health_error}`")
+        with st.expander("🔗 Links", expanded=False):
+            st.markdown("[📂 Training Data (GitHub)](https://github.com/smbrownai/shopper_intervention/blob/main/data/online_shoppers_intention.csv)")
+            st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
+            st.markdown("[🐙 GitHub Repository](https://github.com/smbrownai/shopper_intervention)")
+            st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopper_intervention)")
+        st.caption("Run: `uvicorn api.main:app --reload --port 8000`")
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Dataset Explorer",
     "🎯 Score a Session",
