@@ -21,7 +21,7 @@ from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
-from mlflow.tracking import MLflowClient
+from mlflow.tracking import MlflowClient
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
