@@ -1,4 +1,5 @@
 [core]
     autostage = true
+    remote = origin
 ['remote "origin"']
     url = https://dagshub.com/smbrownai/shopper_intervention.dvc

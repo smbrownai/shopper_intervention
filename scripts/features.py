@@ -45,6 +45,81 @@ ALL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 MONTH_ORDER = ["Feb", "Mar", "May", "Jun", "June", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
+def validate_data(df: pd.DataFrame) -> dict:
+    """
+    Validate the raw dataset before training.
+
+    Returns a dict with keys:
+      - "passed": bool — False if any critical check failed
+      - "errors": list of str — critical failures that block training
+      - "warnings": list of str — non-blocking issues
+      - "stats": dict — numeric summary logged to MLflow
+    """
+    errors = []
+    warnings = []
+    stats = {}
+
+    # --- Critical: required columns present ---
+    expected_cols = ALL_FEATURES + [TARGET]
+    missing_cols = [c for c in expected_cols if c not in df.columns]
+    if missing_cols:
+        errors.append(f"Missing columns: {missing_cols}")
+
+    # --- Critical: minimum row count ---
+    stats["row_count"] = len(df)
+    if len(df) < 500:
+        errors.append(f"Too few rows: {len(df)} (minimum 500)")
+
+    # If columns are missing we can't safely run the remaining checks
+    if errors:
+        return {"passed": False, "errors": errors, "warnings": warnings, "stats": stats}
+
+    # --- Critical: target must be binary ---
+    target_vals = set(df[TARGET].dropna().unique())
+    if not target_vals.issubset({0, 1, True, False}):
+        errors.append(f"Target '{TARGET}' contains non-binary values: {target_vals}")
+
+    # --- Critical: no fully-null column ---
+    fully_null = [c for c in expected_cols if df[c].isna().all()]
+    if fully_null:
+        errors.append(f"Columns are entirely null: {fully_null}")
+
+    # --- Warning: purchase rate sanity ---
+    purchase_rate = df[TARGET].astype(int).mean()
+    stats["purchase_rate"] = round(float(purchase_rate), 4)
+    if purchase_rate < 0.01:
+        warnings.append(f"Purchase rate is very low: {purchase_rate:.1%} (expected ≥ 1%)")
+    elif purchase_rate > 0.70:
+        warnings.append(f"Purchase rate is unusually high: {purchase_rate:.1%} (expected ≤ 70%)")
+
+    # --- Warning: BounceRates and ExitRates should be in [0, 1] ---
+    for col in ["BounceRates", "ExitRates"]:
+        if col in df.columns:
+            out_of_range = ((df[col] < 0) | (df[col] > 1)).sum()
+            if out_of_range > 0:
+                warnings.append(f"{col} has {out_of_range} values outside [0, 1]")
+
+    # --- Warning: duplicate rows ---
+    duplicate_count = int(df.duplicated().sum())
+    stats["duplicate_rows"] = duplicate_count
+    if duplicate_count > 0:
+        warnings.append(f"{duplicate_count} duplicate rows detected")
+
+    # --- Info: per-column null rates ---
+    null_rates = (df[expected_cols].isna().mean() * 100).round(2)
+    cols_with_nulls = null_rates[null_rates > 0]
+    stats["columns_with_nulls"] = len(cols_with_nulls)
+    for col, pct in cols_with_nulls.items():
+        stats[f"null_pct_{col}"] = float(pct)
+
+    return {
+        "passed": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "stats": stats,
+    }
+
+
 def load_data(path: str) -> tuple[pd.DataFrame, pd.Series]:
     """Load CSV and return X, y."""
     df = pd.read_csv(path)

@@ -45,7 +45,7 @@ dagshub.init(repo_owner='smbrownai', repo_name='shopper_intervention', mlflow=Tr
 
 # Allow running from project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from scripts.features import load_data, build_preprocessor
+from scripts.features import load_data, build_preprocessor, validate_data
 
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=UserWarning, module="mlflow")
@@ -308,6 +308,23 @@ def main():
         sys.exit(1)
 
     print(f"\n📂 Loading data from {data_path} ...")
+    import pandas as pd
+    raw_df = pd.read_csv(str(data_path))
+
+    print("\n🔍 Validating data ...")
+    validation = validate_data(raw_df)
+
+    for msg in validation["errors"]:
+        print(f"   ❌ ERROR: {msg}")
+    for msg in validation["warnings"]:
+        print(f"   ⚠️  WARNING: {msg}")
+    if validation["passed"] and not validation["warnings"]:
+        print("   ✅ All checks passed")
+
+    if not validation["passed"]:
+        print("\n🚫 Training aborted due to data validation errors.")
+        sys.exit(1)
+
     X, y = load_data(str(data_path))
     print(f"   Rows: {len(X):,}  |  Purchase rate: {y.mean()*100:.1f}%")
 
@@ -318,6 +335,24 @@ def main():
 
     mlflow.set_experiment(EXPERIMENT_NAME)
     print(f"\n🔬 MLflow experiment: '{EXPERIMENT_NAME}'")
+
+    # Read DVC hash for this data file (links MLflow run to exact data version)
+    dvc_file = data_path.parent / (data_path.name + ".dvc")
+    data_version_hash = None
+    if dvc_file.exists():
+        import yaml
+        dvc_meta = yaml.safe_load(dvc_file.read_text())
+        data_version_hash = dvc_meta["outs"][0].get("md5", "unknown")
+
+    # Log validation stats to a shared parent run so every training session has a data quality record
+    with mlflow.start_run(run_name="data_validation") as val_run:
+        mlflow.log_params({
+            "data_path": str(data_path),
+            "warnings": len(validation["warnings"]),
+            "data_version_hash": data_version_hash or "untracked",
+        })
+        mlflow.log_metrics({k: v for k, v in validation["stats"].items() if isinstance(v, (int, float))})
+        mlflow.log_dict({"warnings": validation["warnings"], "stats": validation["stats"]}, "validation_report.json")
 
     numeric_imputer_strategy = overrides.get("_preprocessor", {}).get("numeric_imputer_strategy", "median")
     excluded_features = overrides.get("_preprocessor", {}).get("excluded_features", [])
