@@ -536,10 +536,12 @@ with tab3:
             st.divider()
 
             # KPIs
-            k1, k2, k3, k4, k5, k6 = st.columns(6)
+            k1, k2, k3 = st.columns(3)
             k1.metric("Sessions Scored", batch_result["total_sessions"])
             k2.metric("Intervention Candidates", batch_result["intervention_count"])
             k3.metric("Intervention Rate", f"{batch_result['intervention_rate']*100:.1f}%")
+
+            k4, k5, k6 = st.columns(3)
             avg_prob = np.mean([r["purchase_probability"] for r in results_list])
             k4.metric("Avg Purchase Prob", f"{avg_prob*100:.1f}%")
             k5.metric("Avg Inference Time", f"{elapsed/len(sessions)*1000:.2f} ms/session")
