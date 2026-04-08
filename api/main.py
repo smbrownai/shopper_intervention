@@ -70,6 +70,7 @@ def load_model():
         "run_id": run_id,
         "roc_auc": champion["roc_auc"],
         "intervention_threshold": champion["intervention_threshold"],
+        "version": champion.get("version", "—"),
         "challenger": full_meta.get("challenger"),
     }
 
