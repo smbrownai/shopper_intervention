@@ -97,7 +97,7 @@ def call_predict_batch(sessions: list[dict], use_challenger: bool = False):
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.title("🛒 Attention Kohl-Mart Shoppers!")
+    st.title("🛒 Shopping Intervention")
     st.caption("Predict sessions for special promo")
     st.caption("BANA 7075 Group 2 Winter 2026")
     st.divider()
@@ -403,6 +403,13 @@ with tab2:
             "use_challenger": use_challenger,
         }
 
+        start = time.time()
+        result, err = call_predict(payload)
+        elapsed = time.time() - start
+
+        # then display it:
+        st.metric("Inference Time", f"{elapsed*1000:.1f} ms")
+        
         result, err = call_predict(payload)
 
         if err:
@@ -424,6 +431,7 @@ with tab2:
                     st.success("## ✅ No Intervention Needed")
                     st.markdown(f"Purchase probability: **{prob_purchase*100:.1f}%**")
 
+                st.metric("Inference Time", f"{elapsed*1000:.1f} ms")
                 st.metric("Purchase Probability", f"{prob_purchase*100:.1f}%")
                 st.metric("No-Purchase Probability", f"{prob_no*100:.1f}%")
                 st.metric("Confidence", result["confidence"])
@@ -520,7 +528,9 @@ with tab3:
             sessions.append(d)
 
         with st.spinner(f"Scoring {len(sessions)} sessions..."):
+            start = time.time()
             batch_result, err = call_predict_batch(sessions, use_challenger=use_challenger_batch)
+            elapsed = time.time() - start
 
         if err:
             st.error(err)
@@ -529,12 +539,14 @@ with tab3:
             st.divider()
 
             # KPIs
-            k1, k2, k3, k4 = st.columns(4)
+            k1, k2, k3, k4, k5, k6 = st.columns(6)
             k1.metric("Sessions Scored", batch_result["total_sessions"])
             k2.metric("Intervention Candidates", batch_result["intervention_count"])
             k3.metric("Intervention Rate", f"{batch_result['intervention_rate']*100:.1f}%")
             avg_prob = np.mean([r["purchase_probability"] for r in results_list])
             k4.metric("Avg Purchase Prob", f"{avg_prob*100:.1f}%")
+            k5.metric("Avg Inference Time", f"{elapsed/len(sessions)*1000:.2f} ms/session")
+            k6.metric("Total Batch Time", f"{elapsed:.2f} s")
 
             # Results table
             results_df = pd.DataFrame([{

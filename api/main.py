@@ -14,6 +14,7 @@ Start with:
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import mlflow
@@ -244,6 +245,7 @@ class PredictionResult(BaseModel):
     intervention_threshold: float
     model_name: str
     confidence: str = Field(..., description="High / Medium / Low confidence bucket")
+    inference_ms: float = Field(..., description="Model inference time in milliseconds")
 
 
 class ThresholdConfig(BaseModel):
@@ -277,8 +279,9 @@ def _predict_session(session: SessionFeatures, use_challenger: bool = False) -> 
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     df = session_dict_to_dataframe(session.model_dump())
+    start = time.perf_counter()
     prob_purchase = float(active_pipeline.predict_proba(df)[0, 1])
-    prob_no_purchase = 1.0 - prob_purchase
+    elapsed_ms = (time.perf_counter() - start) * 1000    prob_no_purchase = 1.0 - prob_purchase
     prediction = int(pipeline.predict(df)[0])
 
     # Intervention logic — single threshold or range
@@ -303,6 +306,7 @@ def _predict_session(session: SessionFeatures, use_challenger: bool = False) -> 
         intervention_threshold=threshold_config["lower"],
         model_name=model_name,
         confidence=confidence,
+        inference_ms=elapsed_ms
     )
 
 def save_threshold_config():
