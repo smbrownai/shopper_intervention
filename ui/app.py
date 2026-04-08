@@ -32,7 +32,6 @@ META_PATH = ROOT / "models" / "best_model_meta.json"
 API_URL = os.getenv("API_URL", "https://shopper-intervention.onrender.com")
 # Safe default — overwritten by API if available
 threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
-champion_name = info.get("model_name", "Champion")
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -324,6 +323,7 @@ with tab1:
 # ===========================================================================
 
 with tab2:
+    champion_name = info.get("model_name", "Champion")
     st.header("Score a Single Session")
     st.caption("Enter session features and get a real-time purchase prediction + intervention decision.")
 
@@ -458,6 +458,7 @@ with tab2:
 # ===========================================================================
 
 with tab3:
+    champion_name = info.get("model_name", "Champion")
     st.header("Batch Session Scoring")
     st.caption("Upload a CSV of sessions to score them all at once and identify intervention candidates. Recommended file size is about 1,500 rows.")
 
