@@ -15,4 +15,5 @@
     "mode": "lower",
     "lower": 0.30,
     "upper": 0.70
+  }
 }
