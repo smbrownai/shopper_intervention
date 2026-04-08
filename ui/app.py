@@ -108,6 +108,54 @@ with st.sidebar:
         st.error("API offline ❌")
         st.caption("Run: `uvicorn api.main:app --reload --port 8000`")
 
+	st.divider()
+	st.markdown("**Intervention Threshold**")
+    
+    # Load current config from API
+    try:
+        current = requests.get(f"{API_URL}/threshold", timeout=3).json()
+        current_mode = current.get("mode", "lower")
+        current_lower = current.get("lower", 0.30)
+        current_upper = current.get("upper", 0.70)
+    except Exception:
+        current_mode = "lower"
+        current_lower = 0.30
+        current_upper = 0.70
+    
+    threshold_mode = st.radio(
+        "Mode",
+        ["Single threshold", "Range"],
+        index=0 if current_mode == "lower" else 1,
+        key="threshold_mode"
+    )
+    
+    if threshold_mode == "Single threshold":
+        lower = st.slider(
+            "Intervene if P(purchase) below",
+            0.0, 1.0, current_lower, step=0.01,
+            key="threshold_lower"
+        )
+        upper = lower
+        mode = "lower"
+    else:
+        lower, upper = st.slider(
+            "Intervene if P(purchase) within range",
+            0.0, 1.0, (current_lower, current_upper), step=0.01,
+            key="threshold_range"
+        )
+        mode = "range"
+    
+    if st.button("Apply Threshold", key="apply_threshold"):
+        try:
+            r = requests.post(f"{API_URL}/threshold", json={
+                "mode": mode,
+                "lower": float(lower),
+                "upper": float(upper),
+            })
+            st.success("✅ Threshold updated")
+        except Exception:
+            st.error("Could not reach API")
+        
     st.divider()
     st.markdown("**Debug**")
     st.sidebar.caption(f"API: {API_URL}")

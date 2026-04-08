@@ -11,4 +11,8 @@
     "roc_auc": 0.9271638311342465,
     "intervention_threshold": 0.3
   }
+  "threshold_config": {
+    "mode": "lower",
+    "lower": 0.30,
+    "upper": 0.70
 }

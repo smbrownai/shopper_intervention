@@ -44,7 +44,7 @@ pipeline = None
 model_meta = {}
 
 def load_model():
-    global pipeline, model_meta
+    global pipeline, model_meta, threshold_config
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -65,6 +65,10 @@ def load_model():
         "intervention_threshold": champion["intervention_threshold"],
         "challenger": full_meta.get("challenger"),
     }
+
+    # Load threshold config from metadata if present
+    if "threshold_config" in full_meta:
+        threshold_config.update(full_meta["threshold_config"])
 
     print(f"✅ Loaded champion model run_id='{run_id}' from {model_uri}")
     
@@ -240,21 +244,20 @@ def _predict_session(session: SessionFeatures) -> PredictionResult:
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    threshold = model_meta.get("intervention_threshold", INTERVENTION_THRESHOLD)
     model_name = model_meta.get("model_name", "unknown")
 
-    # Build DataFrame row
     df = session_dict_to_dataframe(session.model_dump())
 
-    # Predict
     prob_purchase = float(pipeline.predict_proba(df)[0, 1])
     prob_no_purchase = 1.0 - prob_purchase
     prediction = int(pipeline.predict(df)[0])
 
-    # Intervention flag: trigger when purchase probability is low
-    intervene = prob_purchase < threshold
+    # Intervention logic — single threshold or range
+    if threshold_config["mode"] == "range":
+        intervene = threshold_config["lower"] <= prob_purchase <= threshold_config["upper"]
+    else:
+        intervene = prob_purchase < threshold_config["lower"]
 
-    # Confidence bucket
     gap = abs(prob_purchase - 0.5)
     if gap > 0.35:
         confidence = "High"
@@ -268,10 +271,18 @@ def _predict_session(session: SessionFeatures) -> PredictionResult:
         no_purchase_probability=round(prob_no_purchase, 4),
         prediction=prediction,
         intervene=intervene,
-        intervention_threshold=threshold,
+        intervention_threshold=threshold_config["lower"],
         model_name=model_name,
         confidence=confidence,
     )
+
+def save_threshold_config():
+    """Persist threshold config to metadata JSON."""
+    if not META_PATH.exists():
+        return
+    full_meta = json.loads(META_PATH.read_text())
+    full_meta["threshold_config"] = threshold_config
+    META_PATH.write_text(json.dumps(full_meta, indent=2))
 
 
 # ---------------------------------------------------------------------------
@@ -290,10 +301,9 @@ async def root():
 
 @app.get("/model-info", tags=["Model"])
 async def model_info():
-    """Return metadata about the currently loaded model."""
     if not model_meta:
         raise HTTPException(status_code=404, detail="Model metadata not found")
-    return model_meta
+    return {**model_meta, "threshold_config": threshold_config}
 
 
 @app.post("/predict", response_model=PredictionResult, tags=["Prediction"])
@@ -327,3 +337,11 @@ async def predict_batch(batch: BatchRequest):
         intervention_count=intervention_count,
         intervention_rate=round(intervention_count / len(results), 4),
     )
+
+@app.post("/threshold", tags=["Config"])
+async def set_threshold(config: ThresholdConfig):
+    threshold_config["mode"] = config.mode
+    threshold_config["lower"] = config.lower
+    threshold_config["upper"] = config.upper
+    save_threshold_config()
+    return {"status": "updated", "config": threshold_config}
