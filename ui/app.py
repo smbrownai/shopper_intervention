@@ -146,7 +146,7 @@ with st.sidebar:
             st.error("Could not reach API")        
     st.divider()
 
-st.markdown("**Debug**")
+    st.markdown("**Debug**")
     st.sidebar.caption(f"API: {API_URL}")
 
     healthy, health_data = api_health()
