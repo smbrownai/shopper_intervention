@@ -657,6 +657,7 @@ with tab5:
     
     st.divider()
     st.subheader("Preprocessing Options")
+    st.markdown("Raw session data is preprocessed through a shared pipeline used by both training and inference. Numeric features — such as page counts, durations, bounce and exit rates, and page values — are either median-imputed or mean-imputed to handle missing values and then standardized with zero mean and unit variance. Categorical features — including month, visitor type, operating system, browser, region, traffic type, and weekend flag — are mode-imputed and one-hot encoded. Technical and Engagement Rate features may be excluded from model training. Any unknown categories seen at inference time are ignored rather than causing an error. The same preprocessor is fit during training and applied consistently at prediction time, ensuring no data leakage.")
     
     imputer_strategy = st.radio(
         "Numeric Imputation Strategy",
@@ -751,7 +752,3 @@ with tab5:
                 #st.balloons()
             else:
                 st.error(f"❌ Training failed: {status['last_result']}")
-
-    st.divider()
-    st.subheader("How the Preprocessing Pipeline Works")
-    st.markdown("Raw session data is preprocessed through a shared pipeline used by both training and inference. Numeric features — such as page counts, durations, bounce and exit rates, and page values — are median-imputed to handle missing values and then standardized with zero mean and unit variance. Categorical features — including month, visitor type, operating system, browser, region, traffic type, and weekend flag — are mode-imputed and one-hot encoded. Any unknown categories seen at inference time are ignored rather than causing an error. The same preprocessor is fit during training and applied consistently at prediction time, ensuring no data leakage.")
