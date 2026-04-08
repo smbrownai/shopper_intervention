@@ -21,3 +21,5 @@ mlflow==2.9.2
 # Data
 pandas==2.2.3
 numpy==1.26.4
+dvc[http]==3.67.1
+PyYAML==6.0.2
