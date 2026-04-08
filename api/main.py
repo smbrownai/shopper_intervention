@@ -338,8 +338,8 @@ async def predict_batch(batch: BatchRequest):
     """
     if len(batch.sessions) == 0:
         raise HTTPException(status_code=400, detail="sessions list must not be empty")
-    if len(batch.sessions) > 500:
-        raise HTTPException(status_code=400, detail="Max 500 sessions per batch")
+    if len(batch.sessions) > 25000:
+        raise HTTPException(status_code=400, detail="Max 25,000 sessions per batch")
 
     results = [_predict_session(s) for s in batch.sessions]
     intervention_count = sum(1 for r in results if r.intervene)
