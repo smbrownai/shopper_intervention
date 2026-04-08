@@ -338,7 +338,7 @@ with tab2:
     
     model_choice = st.radio(
         "Model",
-        ["Champion", f"Challenger ({challenger_name})"] if has_challenger else ["Champion"],
+        [f"Champion ({champion_name})", f"Challenger ({challenger_name})"] if has_challenger else ["Champion"],
         horizontal=True,
         key="model_choice_single",
         help="Select which model to score with. Challenger is only available after a training run produces one."
@@ -479,7 +479,7 @@ with tab3:
     
     model_choice_batch = st.radio(
         "Model",
-        ["Champion", f"Challenger ({challenger_name})"] if has_challenger else ["Champion"],
+        [f"Champion ({champion_name})", f"Challenger ({challenger_name})"] if has_challenger else ["Champion"],
         horizontal=True,
         key="model_choice_batch",
     )
