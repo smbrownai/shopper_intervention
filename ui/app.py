@@ -108,8 +108,8 @@ with st.sidebar:
         st.error("API offline ❌")
         st.caption("Run: `uvicorn api.main:app --reload --port 8000`")
 
-	st.divider()
-	st.markdown("**Intervention Threshold**")
+    st.divider()
+    st.markdown("**Intervention Threshold**")
     
     # Load current config from API
     try:
