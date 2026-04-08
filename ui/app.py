@@ -191,7 +191,7 @@ with st.sidebar:
             st.markdown("[📂 Training Data (GitHub)](https://github.com/smbrownai/shopper_intervention/blob/main/data/online_shoppers_intention.csv)")
             st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
             st.markdown("[🐙 GitHub Repository](https://github.com/smbrownai/shopper_intervention)")
-            st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopp
+            st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopper_intervention)")
     
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Dataset Explorer",
