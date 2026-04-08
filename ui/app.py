@@ -147,9 +147,9 @@ with st.sidebar:
             st.error("Could not reach API")        
     st.divider()
 
-    st.markdown("**Debug**")
+st.markdown("**Debug**")
     st.sidebar.caption(f"API: {API_URL}")
-    
+
     healthy, health_data = api_health()
     if healthy:
         try:
@@ -159,7 +159,7 @@ with st.sidebar:
             threshold_data.setdefault("upper", 0.70)
         except Exception:
             threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
-    
+
         st.success(f"API online ✅")
         st.caption(f"Model: **{health_data.get('model', '?')}**")
         st.caption(f"ROC-AUC: **{health_data.get('roc_auc', '?')}**")
@@ -167,6 +167,83 @@ with st.sidebar:
             st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%} – {threshold_data.get('upper', 0.70):.0%}** (range)")
         else:
             st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%}** (below)")
+
+        with st.expander("📦 Model Metadata", expanded=False):
+            try:
+                meta = requests.get(f"{API_URL}/model-info", timeout=5).json()
+                st.markdown("**Champion**")
+                st.json(meta.get("champion", meta))
+                if meta.get("challenger"):
+                    st.markdown("**Challenger**")
+                    st.json(meta["challenger"])
+            except Exception:
+                st.warning("Could not fetch model metadata.")
+
+        with st.expander("🔁 Retrain Status", expanded=False):
+            try:
+                st.json(requests.get(f"{API_URL}/retrain-status", timeout=3).json())
+            except Exception:
+                st.warning("Could not fetch retrain status.")
+
+        with st.expander("⚙️ Threshold Config", expanded=False):
+            st.json(threshold_data)
+
+        with st.expander("🔗 Links", expanded=False):
+            st.markdown("[📂 Training Data (GitHub)](https://github.com/smbrownai/shopper_intervention/blob/main/data/online_shoppers_intention.csv)")
+            st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
+            st.markdown("[🐙 GitHub Repository](https://github.com/smbrownai/shopper_intervention)")
+            st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopper_intervention)")
+
+    else:
+        threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
+        st.error("API offline ❌")
+        st.caption("Run: `uvicorn api.main:app --reload --port 8000`")st.markdown("**Debug**")
+    st.sidebar.caption(f"API: {API_URL}")
+
+    healthy, health_data = api_health()
+    if healthy:
+        try:
+            threshold_data = requests.get(f"{API_URL}/threshold", timeout=3).json()
+            threshold_data.setdefault("mode", "lower")
+            threshold_data.setdefault("lower", 0.30)
+            threshold_data.setdefault("upper", 0.70)
+        except Exception:
+            threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
+
+        st.success(f"API online ✅")
+        st.caption(f"Model: **{health_data.get('model', '?')}**")
+        st.caption(f"ROC-AUC: **{health_data.get('roc_auc', '?')}**")
+        if threshold_data.get("mode", "lower") == "range":
+            st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%} – {threshold_data.get('upper', 0.70):.0%}** (range)")
+        else:
+            st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%}** (below)")
+
+        with st.expander("📦 Model Metadata", expanded=False):
+            try:
+                meta = requests.get(f"{API_URL}/model-info", timeout=5).json()
+                st.markdown("**Champion**")
+                st.json(meta.get("champion", meta))
+                if meta.get("challenger"):
+                    st.markdown("**Challenger**")
+                    st.json(meta["challenger"])
+            except Exception:
+                st.warning("Could not fetch model metadata.")
+
+        with st.expander("🔁 Retrain Status", expanded=False):
+            try:
+                st.json(requests.get(f"{API_URL}/retrain-status", timeout=3).json())
+            except Exception:
+                st.warning("Could not fetch retrain status.")
+
+        with st.expander("⚙️ Threshold Config", expanded=False):
+            st.json(threshold_data)
+
+        with st.expander("🔗 Links", expanded=False):
+            st.markdown("[📂 Training Data (GitHub)](https://github.com/smbrownai/shopper_intervention/blob/main/data/online_shoppers_intention.csv)")
+            st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
+            st.markdown("[🐙 GitHub Repository](https://github.com/smbrownai/shopper_intervention)")
+            st.markdown("[🗄️ DagHub Repository](https://dagshub.com/smbrownai/shopper_intervention)")
+
     else:
         threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
         st.error("API offline ❌")
