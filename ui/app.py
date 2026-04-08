@@ -575,7 +575,7 @@ with tab3:
 # ===========================================================================
 
 with tab4:
-    st.header("Model Performance")
+    st.header("Champion Model Performance")
 
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
