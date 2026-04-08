@@ -225,6 +225,12 @@ class PredictionResult(BaseModel):
     confidence: str = Field(..., description="High / Medium / Low confidence bucket")
 
 
+class ThresholdConfig(BaseModel):
+    mode: str = "lower"
+    lower: float = 0.30
+    upper: float = 0.70
+
+
 class BatchRequest(BaseModel):
     sessions: list[SessionFeatures]
 
