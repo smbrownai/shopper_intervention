@@ -79,7 +79,7 @@ def call_predict(payload: dict):
 
 def call_predict_batch(sessions: list[dict]):
     try:
-        r = requests.post(f"{API_BASE}/predict-batch", json={"sessions": sessions}, timeout=180
+        r = requests.post(f"{API_BASE}/predict-batch", json={"sessions": sessions}, timeout=180)
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.ConnectionError:
