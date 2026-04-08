@@ -351,6 +351,10 @@ async def predict_batch(batch: BatchRequest):
         intervention_rate=round(intervention_count / len(results), 4),
     )
 
+@app.get("/threshold", tags=["Config"])
+async def get_threshold():
+    return threshold_config
+
 @app.post("/threshold", tags=["Config"])
 async def set_threshold(config: ThresholdConfig):
     threshold_config["mode"] = config.mode
