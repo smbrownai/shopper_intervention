@@ -54,7 +54,7 @@ threshold_config = {
 }
 
 def load_model():
-    global pipeline, model_meta, threshold_config
+    global pipeline, pipeline_challenger, model_meta, threshold_config
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -283,7 +283,7 @@ def _predict_session(session: SessionFeatures, use_challenger: bool = False) -> 
     prob_purchase = float(active_pipeline.predict_proba(df)[0, 1])
     elapsed_ms = (time.perf_counter() - start) * 1000
     prob_no_purchase = 1.0 - prob_purchase
-    prediction = int(pipeline.predict(df)[0])
+    prediction = int(active_pipeline.predict(df)[0])
 
     # Intervention logic — single threshold or range
     if threshold_config["mode"] == "range":
@@ -342,13 +342,12 @@ async def model_info():
 
 @app.post("/predict", response_model=PredictionResult, tags=["Prediction"])
 async def predict(session: SessionFeatures):
-    return _predict_session(session, use_challenger=session.use_challenger)
     """
     Score a single browser session.
 
     Returns purchase probability and whether to show a promotional offer.
     """
-    return _predict_session(session)
+    return _predict_session(session, use_challenger=session.use_challenger)
 
 
 @app.post("/predict-batch", response_model=BatchResult, tags=["Prediction"])
