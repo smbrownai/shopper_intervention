@@ -29,8 +29,7 @@ ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "online_shoppers_intention.csv"
 META_PATH = ROOT / "models" / "best_model_meta.json"
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
-API_BASE = "https://shopper-intervention.onrender.com"
+API_URL = os.getenv("API_URL", "https://shopper-intervention.onrender.com")
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +59,7 @@ def load_data():
 
 def api_health():
     try:
-        r = requests.get(f"{API_BASE}/", timeout=3)
+        r = requests.get(f"{API_URL}/", timeout=3)
         return r.status_code == 200, r.json()
     except Exception:
         return False, {}
@@ -68,7 +67,7 @@ def api_health():
 
 def call_predict(payload: dict):
     try:
-        r = requests.post(f"{API_BASE}/predict", json=payload, timeout=10)
+        r = requests.post(f"{API_URL}/predict", json=payload, timeout=10)
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.ConnectionError:
@@ -79,7 +78,7 @@ def call_predict(payload: dict):
 
 def call_predict_batch(sessions: list[dict]):
     try:
-        r = requests.post(f"{API_BASE}/predict-batch", json={"sessions": sessions}, timeout=180)
+        r = requests.post(f"{API_URL}/predict-batch", json={"sessions": sessions}, timeout=180)
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.ConnectionError:
@@ -677,7 +676,6 @@ with tab5:
         gb_depth = st.slider("Max Depth", 2, 10, 4, key="gb_depth")
         gb_subsample = st.slider("Subsample", 0.5, 1.0, 0.8, step=0.05, key="gb_sub")
         xgb_scale = st.slider("XGB Scale Pos Weight", 1, 20, 5, key="xgb_scale")
-        overrides["GradientBoosting"] = {"n_estimators": gb_estimators, "learning_rate": gb_lr, "max_depth": gb_depth, "subsample": gb_subsample}
         overrides["XGBoost"] = {"n_estimators": gb_estimators, "learning_rate": gb_lr, "max_depth": gb_depth, "subsample": gb_subsample, "scale_pos_weight": xgb_scale}
 
     st.divider()
