@@ -563,6 +563,87 @@ with tab3:
                 use_container_width=True,
             )
 
+            st.divider()
+            st.subheader("📊 Batch Score Analysis")
+            
+            col_left, col_right = st.columns(2)
+            
+            # 1. Purchase Probability Distribution
+            with col_left:
+                probs = [r["purchase_probability"] for r in results_list]
+                intervene_flags = [r["intervene"] for r in results_list]
+                dist_df = pd.DataFrame({
+                    "Purchase Probability": probs,
+                    "Status": ["Intervene" if i else "No Intervention" for i in intervene_flags]
+                })
+                fig_dist = px.histogram(
+                    dist_df,
+                    x="Purchase Probability",
+                    color="Status",
+                    nbins=20,
+                    color_discrete_map={"Intervene": "#e74c3c", "No Intervention": "#2ecc71"},
+                    title="Purchase Probability Distribution",
+                    barmode="overlay",
+                    opacity=0.75,
+                )
+                fig_dist.add_vline(
+                    x=threshold_data.get("lower", 0.30),
+                    line_dash="dash",
+                    line_color="orange",
+                    annotation_text="Threshold",
+                    annotation_position="top right"
+                )
+                fig_dist.update_layout(height=350)
+                st.plotly_chart(fig_dist, use_container_width=True)
+            
+            # 2. Confidence Breakdown
+            with col_right:
+                confidence_counts = pd.Series(
+                    [r["confidence"] for r in results_list]
+                ).value_counts().reset_index()
+                confidence_counts.columns = ["Confidence", "Count"]
+                fig_conf = px.bar(
+                    confidence_counts,
+                    x="Confidence",
+                    y="Count",
+                    color="Confidence",
+                    color_discrete_map={"High": "#2ecc71", "Medium": "#f39c12", "Low": "#e74c3c"},
+                    title="Prediction Confidence Breakdown",
+                    category_orders={"Confidence": ["High", "Medium", "Low"]},
+                )
+                fig_conf.update_layout(height=350, showlegend=False)
+                st.plotly_chart(fig_conf, use_container_width=True)
+            
+            # 3. Intervention Rate by Threshold
+            st.subheader("🎚️ Threshold Sensitivity")
+            st.caption("How intervention volume changes across different threshold settings — useful for tuning business decisions.")
+            
+            thresholds = [round(t * 0.05, 2) for t in range(1, 20)]
+            intervention_rates = [
+                sum(1 for p in probs if p < t) / len(probs) * 100
+                for t in thresholds
+            ]
+            thresh_df = pd.DataFrame({
+                "Threshold": thresholds,
+                "Intervention Rate (%)": intervention_rates
+            })
+            fig_thresh = px.line(
+                thresh_df,
+                x="Threshold",
+                y="Intervention Rate (%)",
+                title="Intervention Rate vs Threshold",
+                markers=True,
+            )
+            fig_thresh.add_vline(
+                x=threshold_data.get("lower", 0.30),
+                line_dash="dash",
+                line_color="orange",
+                annotation_text=f"Current ({threshold_data.get('lower', 0.30):.0%})",
+                annotation_position="top right"
+            )
+            fig_thresh.update_layout(height=350)
+            st.plotly_chart(fig_thresh, use_container_width=True)
+
             # Download
             prob_col = [r["purchase_probability"] for r in results_list]
             batch_df = batch_df.copy().reset_index(drop=True)
@@ -584,11 +665,11 @@ with tab3:
 # ===========================================================================
 
 with tab4:
-    st.header("Champion Model Performance")
+    st.header("Model Performance")
 
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
-        st.success(f"Best model: **{info.get('model_name', '—')}**")
+        st.success(f"Champion Model: **{info.get('model_name', '—')}**")
         col1, col2, col3 = st.columns(3)
         col1.metric("ROC-AUC (Test)", f"{info.get('roc_auc', 0):.4f}")
         col2.metric("Model Type", info.get("model_name", "—"))
