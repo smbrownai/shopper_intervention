@@ -43,6 +43,13 @@ INTERVENTION_THRESHOLD = 0.30  # fallback if meta not loaded
 pipeline = None
 model_meta = {}
 
+# Runtime threshold config
+threshold_config = {
+    "mode": "lower",
+    "lower": 0.30,
+    "upper": 0.70,
+}
+
 def load_model():
     global pipeline, model_meta, threshold_config
 
