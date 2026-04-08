@@ -374,13 +374,13 @@ with tab2:
                         "axis": {"range": [0, 100]},
                         "bar": {"color": "#2ecc71" if not intervene else "#e74c3c"},
                         "steps": [
-                            {"range": [0, threshold_data.get("mode, "lower") * 100], "color": "#fadbd8"},
-                            {"range": [threshold_data.get("mode", "lower") * 100, 100], "color": "#d5f5e3"},
+                            {"range": [0, threshold_data.get("lower", 0.30) * 100], "color": "#fadbd8"},
+                            {"range": [threshold_data.get("lower", 0.30) * 100, 100], "color": "#d5f5e3"},
                         ],
                         "threshold": {
                             "line": {"color": "orange", "width": 4},
                             "thickness": 0.75,
-                            "value": threshold_data.get("mode", "lower") * 100,
+                            "value": threshold_data.get("lower", 0.30) * 100,
                         },
                     },
                     number={"suffix": "%"},
