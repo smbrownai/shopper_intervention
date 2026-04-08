@@ -698,23 +698,23 @@ with tab5:
         lr_c = st.slider("C (regularization)", 0.001, 10.0, 1.0, step=0.01, key="lr_c")
         lr_solver = st.selectbox("Solver", ["lbfgs", "saga"], key="lr_solver")
         overrides["LR_baseline"] = {"C": lr_c, "solver": lr_solver}
-        overrides["LR_high_regularization"] = {"C": lr_c * 0.01, "solver": lr_solver}
+        #overrides["LR_high_regularization"] = {"C": lr_c * 0.01, "solver": lr_solver}
 
     with st.expander("Decision Tree", expanded=False):
         dt_depth = st.slider("Max Depth", 2, 20, 8, key="dt_depth")
         dt_criterion = st.selectbox("Criterion", ["gini", "entropy"], key="dt_criterion")
         dt_min_samples = st.slider("Min Samples Leaf", 1, 50, 10, key="dt_min")
-        overrides["DT_shallow"] = {"max_depth": max(2, dt_depth - 4)}
+        #overrides["DT_shallow"] = {"max_depth": max(2, dt_depth - 4)}
         overrides["DT_medium"] = {"max_depth": dt_depth, "min_samples_leaf": dt_min_samples}
-        overrides["DT_entropy"] = {"max_depth": dt_depth, "criterion": dt_criterion}
+        #overrides["DT_entropy"] = {"max_depth": dt_depth, "criterion": dt_criterion}
 
     with st.expander("Random Forest", expanded=False):
         rf_estimators = st.slider("N Estimators", 50, 500, 200, step=50, key="rf_n")
         rf_depth = st.slider("Max Depth", 4, 30, 12, key="rf_depth")
         rf_features = st.selectbox("Max Features", ["sqrt", "log2"], key="rf_features")
         overrides["RF_baseline"] = {"n_estimators": rf_estimators, "max_depth": rf_depth}
-        overrides["RF_log2_features"] = {"n_estimators": rf_estimators, "max_depth": rf_depth, "max_features": "log2"}
-        overrides["RF_deep"] = {"n_estimators": rf_estimators + 100, "max_depth": None}
+        #overrides["RF_log2_features"] = {"n_estimators": rf_estimators, "max_depth": rf_depth, "max_features": "log2"}
+        #overrides["RF_deep"] = {"n_estimators": rf_estimators + 100, "max_depth": None}
 
     with st.expander("XGBoost", expanded=False):
         gb_estimators = st.slider("N Estimators", 50, 500, 200, step=50, key="gb_n")

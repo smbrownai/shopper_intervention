@@ -25,7 +25,6 @@ from mlflow.tracking import MlflowClient
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import GradientBoostingClassifier
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.metrics import (
@@ -194,7 +193,7 @@ def compute_metrics(y_true, y_pred, y_prob):
     }
 
 
-def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor):
+def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy="median", excluded_features=None):
     """Train one model, log to MLflow, return (run_id, roc_auc, pipeline)."""
     print(f"\n{'='*60}")
     print(f"  Training: {model_name}")
@@ -260,8 +259,8 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
                 .named_steps["ohe"]
                 .get_feature_names_out()
             )
-            from scripts.features import NUMERIC_FEATURES
-            feat_names = list(NUMERIC_FEATURES) + list(ohe_cols)
+            num_feature_names = preprocessor.transformers_[0][2]  # active numeric features
+            feat_names = list(num_feature_names) + list(ohe_cols)
             importances = dict(zip(feat_names, classifier.feature_importances_.tolist()))
             mlflow.log_dict(importances, "feature_importances.json")
 
@@ -329,10 +328,10 @@ def main():
 
     results = []
     for model_name, estimator, params in model_configs:
-        run_id, roc_auc, pipeline = train_and_log(
-            model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor
-        )
-        results.append((model_name, run_id, roc_auc, pipeline))
+    run_id, roc_auc, pipeline = train_and_log(
+        model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy=numeric_imputer_strategy, excluded_features=excluded_features,
+    )
+    results.append((model_name, run_id, roc_auc, pipeline))
 
     best = max(results, key=lambda r: r[2])
     best_name, best_run_id, best_auc, best_pipeline = best
