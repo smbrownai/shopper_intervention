@@ -53,8 +53,21 @@ threshold_config = {
     "upper": 0.70,
 }
 
+def _fetch_run_metrics(client, run_id: str) -> dict:
+    """Fetch f1 and precision from an MLflow run; return empty dict on failure."""
+    try:
+        run = client.get_run(run_id)
+        m = run.data.metrics
+        return {
+            "f1": m.get("f1"),
+            "precision": m.get("precision"),
+        }
+    except Exception:
+        return {}
+
+
 def load_model():
-    global pipeline, pipeline_challenger, model_meta, threshold_config
+    global pipeline, pipeline_challenger, model_meta, challenger_meta, threshold_config
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -68,12 +81,20 @@ def load_model():
     model_uri = f"runs:/{run_id}/model"
     pipeline = mlflow.sklearn.load_model(model_uri)
 
+    from mlflow.tracking import MlflowClient
+    client = MlflowClient()
+
+    champion_metrics = _fetch_run_metrics(client, run_id)
+
+    challenger_meta = {}
     challenger = full_meta.get("challenger")
     if challenger and challenger.get("run_id"):
         try:
             challenger_uri = f"runs:/{challenger['run_id']}/model"
             pipeline_challenger = mlflow.sklearn.load_model(challenger_uri)
+            challenger_metrics = _fetch_run_metrics(client, challenger["run_id"])
             challenger_meta.update(challenger)
+            challenger_meta.update(challenger_metrics)
             print(f"✅ Loaded challenger model run_id='{challenger['run_id']}'")
         except Exception as e:
             print(f"⚠️ Could not load challenger model: {e}")
@@ -84,7 +105,7 @@ def load_model():
         "roc_auc": champion.get("roc_auc", 0.0),
         "intervention_threshold": champion.get("intervention_threshold", 0.30),
         "version": champion.get("version", "—"),
-        "challenger": full_meta.get("challenger"),
+        **champion_metrics,
     }
 
     # Load threshold config from metadata if present
@@ -337,7 +358,11 @@ async def root():
 async def model_info():
     if not model_meta:
         raise HTTPException(status_code=404, detail="Model metadata not found")
-    return {**model_meta, "threshold_config": threshold_config}
+    return {
+        "champion": model_meta,
+        "challenger": challenger_meta or None,
+        "threshold_config": threshold_config,
+    }
 
 
 @app.post("/predict", response_model=PredictionResult, tags=["Prediction"])

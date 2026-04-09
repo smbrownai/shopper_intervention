@@ -183,7 +183,7 @@ with st.sidebar:
             try:
                 meta = requests.get(f"{API_URL}/model-info", timeout=5).json()
                 st.markdown("**Champion**")
-                st.json(meta.get("champion", meta))
+                st.json(meta.get("champion", {}))
                 if meta.get("challenger"):
                     st.markdown("**Challenger**")
                     st.json(meta["challenger"])
@@ -365,7 +365,7 @@ with tab2:
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=3).json()
         has_challenger = bool(info.get("challenger"))
-        champion_name = info.get("model_name", "Champion")
+        champion_name = info.get("champion", {}).get("model_name", "Champion")
         challenger_name = info.get("challenger", {}).get("model_name", "Challenger")
     except Exception:
         has_challenger = False
@@ -511,7 +511,7 @@ with tab3:
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=3).json()
         has_challenger = bool(info.get("challenger"))
-        champion_name = info.get("model_name", "Champion")
+        champion_name = info.get("champion", {}).get("model_name", "Champion")
         challenger_name = info.get("challenger", {}).get("model_name", "Challenger")
     except Exception:
         has_challenger = False
@@ -747,22 +747,39 @@ with tab4:
 
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
-        st.success(f"Champion Model: **{info.get('model_name', '—')}**")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("ROC-AUC (Test)", f"{info.get('roc_auc', 0):.4f}")
-        col2.metric("Model Type", info.get("model_name", "—"))
+        champion = info.get("champion", {})
+
+        def _wasted_discount(precision):
+            if precision is None:
+                return None
+            return 1.0 - precision
+
+        def _fmt(val, pct=False):
+            if val is None:
+                return "—"
+            return f"{val:.2%}" if pct else f"{val:.4f}"
+
+        st.success(f"Champion Model: **{champion.get('model_name', '—')}**")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("ROC-AUC", _fmt(champion.get("roc_auc")))
+        col2.metric("F1 Score", _fmt(champion.get("f1")))
+        col3.metric("Wasted Discount", _fmt(_wasted_discount(champion.get("precision")), pct=True))
+        col4.metric("Model Type", champion.get("model_name", "—"))
         if threshold_data["mode"] == "range":
-            col3.metric("Intervention Threshold", f"{threshold_data['lower']:.0%} – {threshold_data['upper']:.0%}")
+            col5.metric("Threshold", f"{threshold_data['lower']:.0%} – {threshold_data['upper']:.0%}")
         else:
-            col3.metric("Intervention Threshold", f"{threshold_data['lower']:.0%}")
-        st.caption(f"MLflow run ID: `{info.get('run_id', '—')}`")
+            col5.metric("Threshold", f"{threshold_data['lower']:.0%}")
+        st.caption(f"MLflow run ID: `{champion.get('run_id', '—')}` · Wasted Discount = 1 − Precision: share of flagged sessions that would have purchased anyway")
+
         if info.get("challenger"):
             st.divider()
             st.subheader("Challenger Model")
             ch = info["challenger"]
-            c1, c2 = st.columns(2)
-            c1.metric("Challenger Model", ch.get("model_name", "—"))
-            c2.metric("Challenger ROC-AUC", f"{ch.get('roc_auc', 0):.4f}")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Model Type", ch.get("model_name", "—"))
+            c2.metric("ROC-AUC", _fmt(ch.get("roc_auc")))
+            c3.metric("F1 Score", _fmt(ch.get("f1")))
+            c4.metric("Wasted Discount", _fmt(_wasted_discount(ch.get("precision")), pct=True))
     except Exception:
         st.warning("Could not load model info from API.")
 
@@ -803,9 +820,10 @@ with tab5:
     with col1:
         try:
             info = requests.get(f"{API_URL}/model-info").json()
-            st.metric("Current Model", info.get("model_name", "—"))
-            st.metric("ROC-AUC", f"{info.get('roc_auc', 0):.4f}")
-            st.metric("Version", info.get("version", "—"))
+            champion = info.get("champion", {})
+            st.metric("Current Model", champion.get("model_name", "—"))
+            st.metric("ROC-AUC", f"{champion.get('roc_auc', 0):.4f}")
+            st.metric("Version", champion.get("version", "—"))
         except Exception:
             st.caption("⚠️ Could not reach API")
 
@@ -837,16 +855,22 @@ with tab5:
         "Exclude Engagement Rates",
         help="BounceRates, ExitRates, PageValues"
     )
-    
+
+    drop_duplicates = st.checkbox(
+        "Drop duplicate rows",
+        help="Remove exact duplicate sessions before training. The dataset contains ~125 duplicates (~1%). Dropping them produces a slightly cleaner training set; keeping them reflects real traffic distribution."
+    )
+
     excluded_features = []
     if exclude_technical:
         excluded_features += ["OperatingSystems", "Browser", "Region", "TrafficType"]
     if exclude_engagement:
         excluded_features += ["BounceRates", "ExitRates", "PageValues"]
-    
+
     overrides["_preprocessor"] = {
         "numeric_imputer_strategy": imputer_strategy,
         "excluded_features": excluded_features,
+        "drop_duplicates": drop_duplicates,
     }
 
     st.divider()

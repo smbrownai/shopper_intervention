@@ -334,13 +334,6 @@ def main():
         print("\n🚫 Training aborted due to data validation errors.")
         sys.exit(1)
 
-    X, y = load_data(str(data_path))
-    print(f"   Rows: {len(X):,}  |  Purchase rate: {y.mean()*100:.1f}%")
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
-    )
-    print(f"   Train: {len(X_train):,}  |  Test: {len(X_test):,}")
 
     mlflow.set_experiment(EXPERIMENT_NAME)
     print(f"\n🔬 MLflow experiment: '{EXPERIMENT_NAME}'")
@@ -363,12 +356,26 @@ def main():
         mlflow.log_metrics({k: v for k, v in validation["stats"].items() if isinstance(v, (int, float))})
         mlflow.log_dict({"warnings": validation["warnings"], "stats": validation["stats"]}, "validation_report.json")
 
-    numeric_imputer_strategy = overrides.get("_preprocessor", {}).get("numeric_imputer_strategy", "median")
-    excluded_features = overrides.get("_preprocessor", {}).get("excluded_features", [])
+    preprocessor_overrides = overrides.get("_preprocessor", {})
+    numeric_imputer_strategy = preprocessor_overrides.get("numeric_imputer_strategy", "median")
+    excluded_features = preprocessor_overrides.get("excluded_features", [])
+    drop_duplicates = preprocessor_overrides.get("drop_duplicates", False)
     preprocessor = build_preprocessor(
         numeric_imputer_strategy=numeric_imputer_strategy,
         excluded_features=excluded_features
     )
+
+    X, y = load_data(str(data_path), drop_duplicates=drop_duplicates)
+    if drop_duplicates:
+        n_after = len(X)
+        print(f"   Duplicates removed: {len(raw_df) - n_after:,}  |  Rows after dedup: {n_after:,}  |  Purchase rate: {y.mean()*100:.1f}%")
+    else:
+        print(f"   Rows: {len(X):,}  |  Purchase rate: {y.mean()*100:.1f}%")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
+    )
+    print(f"   Train: {len(X_train):,}  |  Test: {len(X_test):,}")
 
     results = []
     for model_name, estimator, params in model_configs:

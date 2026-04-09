@@ -120,9 +120,11 @@ def validate_data(df: pd.DataFrame) -> dict:
     }
 
 
-def load_data(path: str) -> tuple[pd.DataFrame, pd.Series]:
+def load_data(path: str, drop_duplicates: bool = False) -> tuple[pd.DataFrame, pd.Series]:
     """Load CSV and return X, y."""
     df = pd.read_csv(path)
+    if drop_duplicates:
+        df = df.drop_duplicates()
     # Normalize Weekend column to string so OHE is consistent
     df["Weekend"] = df["Weekend"].astype(str)
     X = df[ALL_FEATURES].copy()
