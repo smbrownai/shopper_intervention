@@ -2,6 +2,6 @@ services:
   - type: web
     name: shopper-intervention-api
     env: python
-    buildCommand: pip install --upgrade pip setuptools && pip install -r requirements.txt && dvc remote modify origin --local auth basic && dvc remote modify origin --local user smbrownai && dvc remote modify origin --local password $DAGSHUB_TOKEN && dvc pull
+    buildCommand: pip install --upgrade pip setuptools && pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     plan: free
