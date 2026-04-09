@@ -39,6 +39,7 @@ MODEL_PATH = MODELS_DIR / "best_model.pkl"
 META_PATH = MODELS_DIR / "best_model_meta.json"
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5050")
+MODEL_REGISTRY_NAME = "shopper_best_model"
 INTERVENTION_THRESHOLD = 0.30  # fallback if meta not loaded
 
 pipeline = None
@@ -71,40 +72,50 @@ def load_model():
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-    if not META_PATH.exists():
-        raise FileNotFoundError(f"No metadata found at {META_PATH}")
-
-    full_meta = json.loads(META_PATH.read_text())
-    champion = full_meta["champion"]
-    run_id = champion["run_id"]
-
-    model_uri = f"runs:/{run_id}/model"
-    pipeline = mlflow.sklearn.load_model(model_uri)
+    full_meta = json.loads(META_PATH.read_text()) if META_PATH.exists() else {}
+    meta_champion = full_meta.get("champion", {})
 
     from mlflow.tracking import MlflowClient
     client = MlflowClient()
 
+    # Always resolve via the registry alias so we load whatever is currently
+    # tagged "champion" — not a potentially stale run_id from the JSON file.
+    champion_uri = f"models:/{MODEL_REGISTRY_NAME}@champion"
+    pipeline = mlflow.sklearn.load_model(champion_uri)
+
+    # Resolve the actual run_id and version from the registry alias
+    champion_mv = client.get_model_version_by_alias(MODEL_REGISTRY_NAME, "champion")
+    run_id = champion_mv.run_id
+    version = champion_mv.version
+
     champion_metrics = _fetch_run_metrics(client, run_id)
+    run_data = client.get_run(run_id).data if run_id else None
 
     challenger_meta = {}
-    challenger = full_meta.get("challenger")
-    if challenger and challenger.get("run_id"):
-        try:
-            challenger_uri = f"runs:/{challenger['run_id']}/model"
-            pipeline_challenger = mlflow.sklearn.load_model(challenger_uri)
-            challenger_metrics = _fetch_run_metrics(client, challenger["run_id"])
-            challenger_meta.update(challenger)
-            challenger_meta.update(challenger_metrics)
-            print(f"✅ Loaded challenger model run_id='{challenger['run_id']}'")
-        except Exception as e:
-            print(f"⚠️ Could not load challenger model: {e}")
+    try:
+        challenger_uri = f"models:/{MODEL_REGISTRY_NAME}@challenger"
+        pipeline_challenger = mlflow.sklearn.load_model(challenger_uri)
+        challenger_mv = client.get_model_version_by_alias(MODEL_REGISTRY_NAME, "challenger")
+        ch_run_id = challenger_mv.run_id
+        challenger_metrics = _fetch_run_metrics(client, ch_run_id)
+        ch_run_data = client.get_run(ch_run_id).data
+        challenger_meta = {
+            "model_name": ch_run_data.params.get("model_type", full_meta.get("challenger", {}).get("model_name", "—")),
+            "run_id": ch_run_id,
+            "version": challenger_mv.version,
+            "roc_auc": ch_run_data.metrics.get("roc_auc", full_meta.get("challenger", {}).get("roc_auc", 0.0)),
+            **challenger_metrics,
+        }
+        print(f"✅ Loaded challenger model v{challenger_mv.version} run_id='{ch_run_id}'")
+    except Exception as e:
+        print(f"⚠️ Could not load challenger model: {e}")
 
     model_meta = {
-        "model_name": champion.get("model_name", "—"),
-        "run_id": champion.get("run_id", "—"),
-        "roc_auc": champion.get("roc_auc", 0.0),
-        "intervention_threshold": champion.get("intervention_threshold", 0.30),
-        "version": champion.get("version", "—"),
+        "model_name": run_data.params.get("model_type", meta_champion.get("model_name", "—")) if run_data else meta_champion.get("model_name", "—"),
+        "run_id": run_id,
+        "version": version,
+        "roc_auc": (run_data.metrics.get("roc_auc", meta_champion.get("roc_auc", 0.0)) if run_data else meta_champion.get("roc_auc", 0.0)),
+        "intervention_threshold": meta_champion.get("intervention_threshold", INTERVENTION_THRESHOLD),
         **champion_metrics,
     }
 
