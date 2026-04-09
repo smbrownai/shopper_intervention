@@ -158,7 +158,7 @@ with st.sidebar:
             st.error("Could not reach API")        
     st.divider()
 
-    st.markdown("**Debug**")
+    st.markdown("**DataOps & ModelOps Observability**")
     st.sidebar.caption(f"API: {API_URL}")
 
     healthy, health_data, health_error = api_health()
@@ -257,6 +257,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.header("Dataset Explorer")
+    st.caption("DataOps: data versioning via DVC, quality validation at training time, and feature distribution analysis.")
     df = load_data()
 
     if df is None:
@@ -744,6 +745,7 @@ with tab3:
 
 with tab4:
     st.header("Model Performance")
+    st.caption("ModelOps: champion/challenger deployment pattern with live registry-backed model versioning and performance tracking across runs.")
 
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
@@ -813,7 +815,7 @@ with tab4:
 
 with tab5:
     st.header("🔁 Retrain Model")
-    st.caption("Adjust hyperparameters and kick off a new training run.")
+    st.caption("ModelOps: close the retraining loop — adjust hyperparameters, trigger a new run, and promote the best result to champion in the MLflow registry.")
 
     # Current model info
     col1, col2 = st.columns([1, 2])
@@ -833,7 +835,7 @@ with tab5:
     overrides = {}
     
     st.divider()
-    st.subheader("Preprocessing Options")
+    st.subheader("DataOps: Preprocessing Pipeline")
     st.caption("Raw session data is preprocessed through a shared pipeline used by both training and inference. Numeric features — such as page counts, durations, bounce and exit rates, and page values — are either median-imputed or mean-imputed to handle missing values and then standardized with zero mean and unit variance. Categorical features — including month, visitor type, operating system, browser, region, traffic type, and weekend flag — are mode-imputed and one-hot encoded. Technical and Engagement Rate features may be excluded from model training. Any unknown categories seen at inference time are ignored rather than causing an error. The same preprocessor is fit during training and applied consistently at prediction time, ensuring no data leakage.")
     
     imputer_strategy = st.radio(
@@ -874,7 +876,7 @@ with tab5:
     }
 
     st.divider()
-    st.subheader("Hyperparameter Overrides")
+    st.subheader("ModelOps: Hyperparameter Tuning")
     st.caption("Adjust key parameters per model. Leave as-is to use defaults.")
 
     with st.expander("Logistic Regression", expanded=False):
