@@ -498,7 +498,7 @@ with tab2:
 
 with tab3:
     st.header("Batch Session Scoring")
-    st.caption("Upload a CSV of sessions to score them all at once and identify intervention candidates. Recommended file size is about 1,500 rows.")
+    st.caption("Score a batch of sessions and identify intervention candidates. Use a training dataset sample, generate synthetic data, or upload your own CSV (up to 25,000 rows).")
 
     REQUIRED_COLS = [
         "Administrative","Administrative_Duration","Informational","Informational_Duration",
@@ -527,16 +527,33 @@ with tab3:
     )
     use_challenger_batch = "Challenger" in model_choice_batch
 
-    use_sample = st.checkbox("Use a sample from the training dataset (first 50 rows)", value=True)
+    data_source = st.radio(
+        "Data source",
+        ["Training dataset sample (first 50 rows)", "Generate synthetic data", "Upload CSV"],
+        horizontal=True,
+        key="batch_data_source",
+    )
 
     uploaded = None
-    if not use_sample:
+    sim_n, sim_seed = 500, 42
+
+    if data_source == "Generate synthetic data":
+        sc1, sc2 = st.columns(2)
+        sim_n    = sc1.number_input("Number of sessions (n)", min_value=1, max_value=25000, value=500, step=100)
+        sim_seed = sc2.number_input("Random seed", min_value=0, max_value=999999, value=42, step=1)
+    elif data_source == "Upload CSV":
         uploaded = st.file_uploader("Upload session CSV", type=["csv"])
 
     if st.button("▶️ Run Batch Scoring", type="primary"):
-        if use_sample:
+        if data_source == "Training dataset sample (first 50 rows)":
             df = load_data()
             batch_df = df[REQUIRED_COLS].head(50).copy()
+        elif data_source == "Generate synthetic data":
+            import sys, os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+            from generate_shopper_data import generate_shopper_data
+            with st.spinner(f"Generating {sim_n:,} synthetic sessions (seed={sim_seed})..."):
+                batch_df = generate_shopper_data(n=int(sim_n), seed=int(sim_seed))[REQUIRED_COLS]
         elif uploaded is not None:
             batch_df = pd.read_csv(uploaded)
             missing = [c for c in REQUIRED_COLS if c not in batch_df.columns]
@@ -545,7 +562,7 @@ with tab3:
                 st.stop()
             batch_df = batch_df[REQUIRED_COLS]
         else:
-            st.warning("Please upload a CSV or check 'Use sample'.")
+            st.warning("Please upload a CSV or choose another data source.")
             st.stop()
 
         # Convert to JSON list
