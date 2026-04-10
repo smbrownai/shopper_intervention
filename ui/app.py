@@ -227,7 +227,11 @@ with st.sidebar:
                 st.caption("CSV present: ❌ (not downloaded yet)")
 
         with st.expander("🧪 Synthetic Data Generator", expanded=False):
-            synth = st.session_state.get("synth_stats")
+            _synth_cache = ROOT / "ui" / ".synth_stats_cache.json"
+            try:
+                synth = json.loads(_synth_cache.read_text())
+            except Exception:
+                synth = None
             if synth:
                 st.caption(f"Generated at: **{synth['generated_at']}**")
                 st.caption(f"Sessions: **{synth['n']:,}**  |  Seed: **{synth['seed']}**")
@@ -237,7 +241,7 @@ with st.sidebar:
                     pct = count / synth["n"]
                     st.caption(f"- {vtype}: {count:,} ({pct:.1%})")
             else:
-                st.caption("No synthetic batch generated yet this session.")
+                st.caption("No synthetic batch generated yet.")
                 st.caption("Select **Generate synthetic data** in the Batch Scoring tab and run scoring to populate this panel.")
 
         with st.expander("🔗 Links", expanded=False):
@@ -568,13 +572,17 @@ with tab3:
             from generate_shopper_data import generate_shopper_data
             with st.spinner(f"Generating {sim_n:,} synthetic sessions (seed={sim_seed})..."):
                 _full = generate_shopper_data(n=int(sim_n), seed=int(sim_seed))
-                st.session_state["synth_stats"] = {
+                _stats = {
                     "n": int(sim_n),
                     "seed": int(sim_seed),
                     "revenue_rate": float(_full["Revenue"].mean()),
                     "visitor_mix": _full["VisitorType"].value_counts().to_dict(),
-                    "generated_at": pd.Timestamp.now().strftime("%H:%M:%S"),
+                    "generated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
+                try:
+                    (ROOT / "ui" / ".synth_stats_cache.json").write_text(json.dumps(_stats))
+                except Exception:
+                    pass
                 batch_df = _full[REQUIRED_COLS]
         elif uploaded is not None:
             batch_df = pd.read_csv(uploaded)
