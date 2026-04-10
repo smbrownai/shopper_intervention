@@ -226,6 +226,20 @@ with st.sidebar:
             else:
                 st.caption("CSV present: ❌ (not downloaded yet)")
 
+        with st.expander("🧪 Synthetic Data Generator", expanded=False):
+            synth = st.session_state.get("synth_stats")
+            if synth:
+                st.caption(f"Generated at: **{synth['generated_at']}**")
+                st.caption(f"Sessions: **{synth['n']:,}**  |  Seed: **{synth['seed']}**")
+                st.caption(f"Revenue rate: **{synth['revenue_rate']:.1%}**")
+                st.markdown("**Visitor mix**")
+                for vtype, count in synth["visitor_mix"].items():
+                    pct = count / synth["n"]
+                    st.caption(f"- {vtype}: {count:,} ({pct:.1%})")
+            else:
+                st.caption("No synthetic batch generated yet this session.")
+                st.caption("Select **Generate synthetic data** in the Batch Scoring tab and run scoring to populate this panel.")
+
         with st.expander("🔗 Links", expanded=False):
             st.markdown("[📂 Training Data (GitHub)](https://github.com/smbrownai/shopper_intervention/blob/main/data/online_shoppers_intention.csv)")
             st.markdown("[📊 MLflow Experiments (DagHub)](https://dagshub.com/smbrownai/shopper_intervention.mlflow)")
@@ -553,7 +567,15 @@ with tab3:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
             from generate_shopper_data import generate_shopper_data
             with st.spinner(f"Generating {sim_n:,} synthetic sessions (seed={sim_seed})..."):
-                batch_df = generate_shopper_data(n=int(sim_n), seed=int(sim_seed))[REQUIRED_COLS]
+                _full = generate_shopper_data(n=int(sim_n), seed=int(sim_seed))
+                st.session_state["synth_stats"] = {
+                    "n": int(sim_n),
+                    "seed": int(sim_seed),
+                    "revenue_rate": float(_full["Revenue"].mean()),
+                    "visitor_mix": _full["VisitorType"].value_counts().to_dict(),
+                    "generated_at": pd.Timestamp.now().strftime("%H:%M:%S"),
+                }
+                batch_df = _full[REQUIRED_COLS]
         elif uploaded is not None:
             batch_df = pd.read_csv(uploaded)
             missing = [c for c in REQUIRED_COLS if c not in batch_df.columns]
