@@ -410,28 +410,79 @@ def main():
     meta_path.write_text(json.dumps(meta, indent=2))
 
     client = MlflowClient()
-    
+
+    # Set top-level registered model description (purpose, inputs, outputs — shared across all versions)
+    try:
+        client.update_registered_model(
+            name=MODEL_REGISTRY_NAME,
+            description=(
+                "Shopper purchase-intent classifier for e-commerce session intervention.\n\n"
+                "Predicts P(purchase) for a browsing session using 17 behavioral and temporal features "
+                "(page views, bounce rates, session duration, month, visitor type, etc.).\n\n"
+                f"Sessions with P(purchase) < intervention_threshold (default {INTERVENTION_THRESHOLD}) "
+                "are flagged for promotional intervention.\n\n"
+                "Champion/challenger versions are maintained so the API can A/B compare models at runtime. "
+                "Primary selection metric: ROC-AUC on a held-out 20% test split.\n\n"
+                "Training data: UCI Online Shoppers Intention dataset (12,330 sessions, ~16% purchase rate)."
+            ),
+        )
+    except Exception:
+        pass  # Model may not exist yet on first run; mlflow.register_model creates it
+
+    import datetime
+    trained_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
     # Register champion
     champion_uri = f"runs:/{best_run_id}/model"
     champion_mv = mlflow.register_model(champion_uri, MODEL_REGISTRY_NAME)
     client.set_registered_model_alias(
         MODEL_REGISTRY_NAME, "champion", champion_mv.version
     )
+    client.update_model_version(
+        name=MODEL_REGISTRY_NAME,
+        version=champion_mv.version,
+        description=(
+            f"CHAMPION — {best_name}\n\n"
+            f"Trained: {trained_at}\n"
+            f"Test ROC-AUC : {best_auc:.4f}\n"
+            f"CV ROC-AUC   : see run metrics\n"
+            f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
+            f"Data version hash: {data_version_hash or 'untracked'}\n"
+            f"MLflow run: {best_run_id}\n\n"
+            "Selected as champion by highest test ROC-AUC among all models in this training run."
+        ),
+    )
     meta["champion"]["version"] = champion_mv.version
-    
+
     # Rewrite meta with version included
     meta_path.write_text(json.dumps(meta, indent=2))
     print(f"✅ Champion registered: v{champion_mv.version} ({best_name})")
-    
+
     # Register challenger (if exists)
     if "challenger" in meta:
         challenger_run_id = meta["challenger"]["run_id"]
+        challenger_name = meta["challenger"]["model_name"]
+        challenger_auc = meta["challenger"]["roc_auc"]
         challenger_uri = f"runs:/{challenger_run_id}/model"
         challenger_mv = mlflow.register_model(challenger_uri, MODEL_REGISTRY_NAME)
         client.set_registered_model_alias(
             MODEL_REGISTRY_NAME, "challenger", challenger_mv.version
         )
-        print(f"✅ Challenger registered: v{challenger_mv.version} ({meta['challenger']['model_name']})")
+        client.update_model_version(
+            name=MODEL_REGISTRY_NAME,
+            version=challenger_mv.version,
+            description=(
+                f"CHALLENGER — {challenger_name}\n\n"
+                f"Trained: {trained_at}\n"
+                f"Test ROC-AUC : {challenger_auc:.4f}\n"
+                f"CV ROC-AUC   : see run metrics\n"
+                f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
+                f"Data version hash: {data_version_hash or 'untracked'}\n"
+                f"MLflow run: {challenger_run_id}\n\n"
+                f"Second-best ROC-AUC in this training run. Champion is v{champion_mv.version} ({best_name}, AUC={best_auc:.4f})."
+            ),
+        )
+        print(f"✅ Challenger registered: v{challenger_mv.version} ({challenger_name})")
     
     print(f"✅ Model metadata saved → {meta_path}")
     
