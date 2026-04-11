@@ -434,20 +434,24 @@ def main():
     client.set_registered_model_alias(
         MODEL_REGISTRY_NAME, "champion", champion_mv.version
     )
-    client.update_model_version(
-        name=MODEL_REGISTRY_NAME,
-        version=champion_mv.version,
-        description=(
-            f"CHAMPION — {best_name}\n\n"
-            f"Trained: {trained_at}\n"
-            f"Test ROC-AUC : {best_auc:.4f}\n"
-            f"CV ROC-AUC   : see run metrics\n"
-            f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
-            f"Data version hash: {data_version_hash or 'untracked'}\n"
-            f"MLflow run: {best_run_id}\n\n"
-            "Selected as champion by highest test ROC-AUC among all models in this training run."
-        ),
-    )
+    try:
+        client.update_model_version(
+            name=MODEL_REGISTRY_NAME,
+            version=str(champion_mv.version),
+            description=(
+                f"CHAMPION — {best_name}\n\n"
+                f"Trained: {trained_at}\n"
+                f"Test ROC-AUC : {best_auc:.4f}\n"
+                f"CV ROC-AUC   : see run metrics\n"
+                f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
+                f"Data version hash: {data_version_hash or 'untracked'}\n"
+                f"MLflow run: {best_run_id}\n\n"
+                "Selected as champion by highest test ROC-AUC among all models in this training run."
+            ),
+        )
+        print(f"  ✅ Description set for champion v{champion_mv.version}")
+    except Exception as e:
+        print(f"  ⚠️  Could not set champion description: {e}")
     meta["champion"]["version"] = champion_mv.version
 
     # Rewrite meta with version included
@@ -464,20 +468,24 @@ def main():
         client.set_registered_model_alias(
             MODEL_REGISTRY_NAME, "challenger", challenger_mv.version
         )
-        client.update_model_version(
-            name=MODEL_REGISTRY_NAME,
-            version=challenger_mv.version,
-            description=(
-                f"CHALLENGER — {challenger_name}\n\n"
-                f"Trained: {trained_at}\n"
-                f"Test ROC-AUC : {challenger_auc:.4f}\n"
-                f"CV ROC-AUC   : see run metrics\n"
-                f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
-                f"Data version hash: {data_version_hash or 'untracked'}\n"
-                f"MLflow run: {challenger_run_id}\n\n"
-                f"Second-best ROC-AUC in this training run. Champion is v{champion_mv.version} ({best_name}, AUC={best_auc:.4f})."
-            ),
-        )
+        try:
+            client.update_model_version(
+                name=MODEL_REGISTRY_NAME,
+                version=str(challenger_mv.version),
+                description=(
+                    f"CHALLENGER — {challenger_name}\n\n"
+                    f"Trained: {trained_at}\n"
+                    f"Test ROC-AUC : {challenger_auc:.4f}\n"
+                    f"CV ROC-AUC   : see run metrics\n"
+                    f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
+                    f"Data version hash: {data_version_hash or 'untracked'}\n"
+                    f"MLflow run: {challenger_run_id}\n\n"
+                    f"Second-best ROC-AUC in this training run. Champion is v{champion_mv.version} ({best_name}, AUC={best_auc:.4f})."
+                ),
+            )
+            print(f"  ✅ Description set for challenger v{challenger_mv.version}")
+        except Exception as e:
+            print(f"  ⚠️  Could not set challenger description: {e}")
         print(f"✅ Challenger registered: v{challenger_mv.version} ({challenger_name})")
     
     print(f"✅ Model metadata saved → {meta_path}")
