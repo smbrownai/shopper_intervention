@@ -354,6 +354,16 @@ def save_threshold_config():
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+@app.post("/admin/reload-model", tags=["Admin"])
+def reload_model():
+    """
+    Reload the champion model from MLflow without restarting the server.
+    """
+    global pipeline
+    champion_uri = f"models:/{MODEL_REGISTRY_NAME}@champion"
+    pipeline = mlflow.sklearn.load_model(champion_uri)
+    return {"status": "champion model reloaded"}
+
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
 async def root():
