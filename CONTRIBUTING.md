@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing. This document outlines the workflow for making changes without breaking the main branch.
 
+Note: For detailed setup and Quick Start instructions, see [Quick Start](README.md#quick-start).
+
 ---
 
 ## Getting Started
