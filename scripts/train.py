@@ -194,6 +194,17 @@ def compute_metrics(y_true, y_pred, y_prob):
         "roc_auc": roc_auc_score(y_true, y_prob),
     }
 
+# Calculate Business Metrics
+# 1. Identify where we 'Intervened' (Probability < Threshold)
+# 2. Identify 'Natural Buyers' (Intervened == True AND y_test == True)
+interventions = (y_probs < 0.30) # Using your default 30% threshold
+wasted_discounts = (interventions == True) & (y_test == True)
+
+wasted_discount_rate = wasted_discounts.sum() / interventions.sum() if interventions.sum() > 0 else 0
+
+# Log to MLflow
+mlflow.log_metric("wasted_discount_rate", wasted_discount_rate)
+
 
 def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy="median", excluded_features=None):
     """Train one model, log to MLflow, return (run_id, roc_auc, pipeline)."""
