@@ -1,5 +1,7 @@
 # Contributing to Shopper Intervention
 
+Note: For detailed setup and Quick Start instructions (installing dependencies, running the API and dashboard, fetching training data), see the project's README — Quick Start section: [Quick Start](README.md#quick-start). This file focuses on workflow, branching, and PR conventions.
+
 Thanks for your interest in contributing. This document outlines the workflow for making changes without breaking the main branch.
 
 Note: For detailed setup and Quick Start instructions, see [Quick Start](README.md#quick-start).
