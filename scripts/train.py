@@ -242,6 +242,11 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         mlflow.log_metric("cv_roc_auc_mean", cv_scores.mean())
         mlflow.log_metric("cv_roc_auc_std", cv_scores.std())
 
+        interventions = y_prob < INTERVENTION_THRESHOLD
+        wasted_discounts = interventions & (y_test.values == 1)
+        wasted_discount_rate = wasted_discounts.sum() / interventions.sum() if interventions.sum() > 0 else 0
+        mlflow.log_metric("wasted_discount_rate", wasted_discount_rate)
+
         # Confusion matrix as artifact
         cm = confusion_matrix(y_test, y_pred)
         cm_dict = {
