@@ -616,16 +616,24 @@ with tab3:
             st.divider()
 
             # KPIs
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Sessions Scored", batch_result["total_sessions"])
-            k2.metric("Intervention Candidates", batch_result["intervention_count"])
-            k3.metric("Intervention Rate", f"{batch_result['intervention_rate']*100:.1f}%")
+            n_intervened = batch_result["intervention_count"]
+            if n_intervened > 0:
+                wdr_est = np.mean([r["purchase_probability"] for r in results_list if r["intervene"]])
+            else:
+                wdr_est = 0.0
 
-            k4, k5, k6 = st.columns(3)
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("Sessions Scored", batch_result["total_sessions"])
+            k2.metric("Intervention Candidates", n_intervened)
+            k3.metric("Intervention Rate", f"{batch_result['intervention_rate']*100:.1f}%")
+            k4.metric("Wasted Discount Rate", f"{wdr_est*100:.1f}%")
+            st.caption("Wasted Discount Rate: avg purchase probability among flagged sessions — lower is better, sensitive to threshold changes.")
+
+            m1, m2, m3 = st.columns(3)
             avg_prob = np.mean([r["purchase_probability"] for r in results_list])
-            k4.metric("Avg Purchase Prob", f"{avg_prob*100:.1f}%")
-            k5.metric("Avg Inference Time", f"{elapsed/len(sessions)*1000:.2f} ms/session")
-            k6.metric("Total Batch Time", f"{elapsed:.2f} s")
+            m1.metric("Avg Purchase Prob", f"{avg_prob*100:.1f}%")
+            m2.metric("Avg Inference Time", f"{elapsed/len(sessions)*1000:.2f} ms/session")
+            m3.metric("Total Batch Time", f"{elapsed:.2f} s")
 
             # Results table
             results_df = pd.DataFrame([{
@@ -1013,7 +1021,7 @@ with tab5:
         if rows:
             import pandas as pd
             df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_run_id"]]
-            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Run ID"]
+            df.columns = ["Model Type", "Runs", "Best ROC-AUC", "Best Run ID"]
             df["Best ROC-AUC"] = df["Best ROC-AUC"].map(lambda x: f"{x:.4f}" if x else "—")
             st.table(df)
         else:
