@@ -134,6 +134,8 @@ def load_model():
         threshold_config.update(full_meta["threshold_config"])
 
     print(f"✅ Loaded champion model run_id='{run_id}' from {champion_uri}")
+    import threading
+    threading.Thread(target=_warm_optimizer_cache, daemon=True).start()
     
     
 # ---------------------------------------------------------------------------
@@ -155,6 +157,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _warm_optimizer_cache():
+    """Score the full dataset with the current pipeline and cache results.
+    Runs in a background thread so it doesn't block startup or requests."""
+    if pipeline is None or "y_prob" in _optimizer_cache:
+        return
+    try:
+        import pandas as pd
+        print("🔥 Pre-warming optimizer cache...")
+        data_path = ROOT / "data" / "online_shoppers_intention.csv"
+        if not data_path.exists():
+            data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
+        df = pd.read_csv(data_path)
+        _optimizer_cache["y"] = df["Revenue"].astype(int).values
+        _optimizer_cache["y_prob"] = pipeline.predict_proba(df.drop(columns=["Revenue"]))[:, 1]
+        print(f"✅ Optimizer cache warm — {len(_optimizer_cache['y']):,} sessions scored.")
+    except Exception as e:
+        print(f"⚠️ Optimizer cache warm failed: {e}")
 
 
 @app.on_event("startup")
