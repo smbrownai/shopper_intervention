@@ -881,7 +881,7 @@ with tab4:
             raw = requests.post(
                 f"{API_URL}/recommend-threshold",
                 json={"target_wdr": target_wdr_pct / 100},
-                timeout=30,
+                timeout=60,
             )
             resp = raw.json()
             if "detail" in resp:
