@@ -1,8 +1,7 @@
 setuptools==69.5.1
 dagshub==0.6.9
 
-# UI
-#streamlit==1.37.1
+# UI (streamlit is installed by Streamlit Cloud directly; not needed for Render API build)
 plotly==6.6.0
 requests==2.33.1
 

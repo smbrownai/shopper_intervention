@@ -11,9 +11,7 @@ Run with:
     streamlit run ui/app.py
 """
 
-import sys
 import json
-import io
 import os
 import time
 import hashlib
@@ -28,7 +26,6 @@ import streamlit as st
 
 ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "online_shoppers_intention.csv"
-META_PATH = ROOT / "models" / "best_model_meta.json"
 
 API_URL = os.getenv("API_URL", "https://shopper-intervention.onrender.com")
 # Safe default — overwritten by API if available
@@ -111,29 +108,27 @@ with st.sidebar:
 
     st.markdown("**Intervention Threshold**")
     st.caption("The probability cutoff used to flag sessions for outreach. This is a business decision applied to model output, not a model parameter.")
-    
-    # Load current config from API
+
+    # Single source of truth for threshold config — reused below for observability display
     try:
-        current = requests.get(f"{API_URL}/threshold", timeout=3).json()
-        current_mode = current.get("mode", "lower")
-        current_lower = current.get("lower", 0.30)
-        current_upper = current.get("upper", 0.70)
+        threshold_data = requests.get(f"{API_URL}/threshold", timeout=3).json()
+        threshold_data.setdefault("mode", "lower")
+        threshold_data.setdefault("lower", 0.30)
+        threshold_data.setdefault("upper", 0.70)
     except Exception:
-        current_mode = "lower"
-        current_lower = 0.30
-        current_upper = 0.70
-    
+        threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
+
     threshold_mode = st.radio(
         "Mode",
         ["Single threshold", "Range"],
-        index=0 if current_mode == "lower" else 1,
+        index=0 if threshold_data["mode"] == "lower" else 1,
         key="threshold_mode"
     )
-    
+
     if threshold_mode == "Single threshold":
         lower = st.slider(
             "Intervene if P(purchase) below",
-            0.0, 1.0, current_lower, step=0.01,
+            0.0, 1.0, threshold_data["lower"], step=0.01,
             key="threshold_lower"
         )
         upper = lower
@@ -141,7 +136,7 @@ with st.sidebar:
     else:
         lower, upper = st.slider(
             "Intervene if P(purchase) within range",
-            0.0, 1.0, (current_lower, current_upper), step=0.01,
+            0.0, 1.0, (threshold_data["lower"], threshold_data["upper"]), step=0.01,
             key="threshold_range"
         )
         mode = "range"
@@ -163,21 +158,7 @@ with st.sidebar:
 
     healthy, health_data, health_error = api_health()
     if healthy:
-        try:
-            threshold_data = requests.get(f"{API_URL}/threshold", timeout=3).json()
-            threshold_data.setdefault("mode", "lower")
-            threshold_data.setdefault("lower", 0.30)
-            threshold_data.setdefault("upper", 0.70)
-        except Exception:
-            threshold_data = {"mode": "lower", "lower": 0.30, "upper": 0.70}
-
         st.success(f"API online ✅")
-        #st.caption(f"Model: **{health_data.get('model', '?')}**")
-        #st.caption(f"ROC-AUC: **{health_data.get('roc_auc', '?')}**")
-        #if threshold_data.get("mode", "lower") == "range":
-        #    st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%} – {threshold_data.get('upper', 0.70):.0%}** (range)")
-        #else:
-        #    st.caption(f"Threshold: **{threshold_data.get('lower', 0.30):.0%}** (below)")
 
         with st.expander("📦 Model Metadata", expanded=False):
             try:
@@ -380,7 +361,6 @@ with tab2:
     st.caption("Enter session features and get a real-time purchase prediction + intervention decision.")
 
     # Check if challenger is available
-    has_challenger = bool(model_meta.get("challenger")) if "model_meta" in dir() else False
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=3).json()
         has_challenger = bool(info.get("challenger"))
@@ -888,10 +868,6 @@ with tab4:
     raw accuracy, which would be misleading on imbalanced data.
     """)
 
-    #st.subheader("Run MLflow UI")
-    #st.code("mlflow ui --port 5050", language="bash")
-    #st.caption("Then open http://localhost:5050 to compare all experiment runs side by side.")
-
 
 # ===========================================================================
 # TAB 5 — Retrain Model
@@ -952,23 +928,18 @@ with tab5:
         lr_c = st.slider("C (regularization)", 0.001, 10.0, 1.0, step=0.01, key="lr_c")
         lr_solver = st.selectbox("Solver", ["lbfgs", "saga"], key="lr_solver")
         overrides["LR_baseline"] = {"C": lr_c, "solver": lr_solver}
-        #overrides["LR_high_regularization"] = {"C": lr_c * 0.01, "solver": lr_solver}
 
     with st.expander("Decision Tree", expanded=False):
         dt_depth = st.slider("Max Depth", 2, 20, 8, key="dt_depth")
         dt_criterion = st.selectbox("Criterion", ["gini", "entropy"], key="dt_criterion")
         dt_min_samples = st.slider("Min Samples Leaf", 1, 50, 10, key="dt_min")
-        #overrides["DT_shallow"] = {"max_depth": max(2, dt_depth - 4)}
-        overrides["DT_medium"] = {"max_depth": dt_depth, "min_samples_leaf": dt_min_samples}
-        #overrides["DT_entropy"] = {"max_depth": dt_depth, "criterion": dt_criterion}
+        overrides["DT_medium"] = {"max_depth": dt_depth, "min_samples_leaf": dt_min_samples, "criterion": dt_criterion}
 
     with st.expander("Random Forest", expanded=False):
         rf_estimators = st.slider("N Estimators", 50, 500, 200, step=50, key="rf_n")
         rf_depth = st.slider("Max Depth", 4, 30, 12, key="rf_depth")
         rf_features = st.selectbox("Max Features", ["sqrt", "log2"], key="rf_features")
-        overrides["RF_baseline"] = {"n_estimators": rf_estimators, "max_depth": rf_depth}
-        #overrides["RF_log2_features"] = {"n_estimators": rf_estimators, "max_depth": rf_depth, "max_features": "log2"}
-        #overrides["RF_deep"] = {"n_estimators": rf_estimators + 100, "max_depth": None}
+        overrides["RF_baseline"] = {"n_estimators": rf_estimators, "max_depth": rf_depth, "max_features": rf_features}
 
     with st.expander("XGBoost", expanded=False):
         gb_estimators = st.slider("N Estimators", 50, 500, 200, step=50, key="gb_n")
@@ -1007,7 +978,6 @@ with tab5:
                     f"**ROC-AUC:** {status['roc_auc']:.4f}  \n"
                     f"**Version:** {status['version']}"
                 )
-                #st.balloons()
             else:
                 st.error(f"❌ Training failed: {status['last_result']}")
 

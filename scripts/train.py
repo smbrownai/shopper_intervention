@@ -82,92 +82,26 @@ def build_model_configs(overrides=None):
             ),
             {"C": get("LR_baseline", "C", 1.0), "solver": get("LR_baseline", "solver", "lbfgs")},
         ),
-        #(
-        #    "LR_high_regularization",
-        #    LogisticRegression(
-        #        C=get("LR_high_regularization", "C", 0.01),
-        #        solver=get("LR_high_regularization", "solver", "lbfgs"),
-        #        class_weight="balanced", max_iter=1000, random_state=RANDOM_STATE
-        #    ),
-        #    {"C": get("LR_high_regularization", "C", 0.01), "solver": get("LR_high_regularization", "solver", "lbfgs")},
-        #),
-        #(
-        #    "LR_L1",
-        #    LogisticRegression(
-        #        C=get("LR_L1", "C", 1.0),
-        #        penalty=get("LR_L1", "penalty", "l1"),
-        #        solver=get("LR_L1", "solver", "saga"),
-        #        class_weight="balanced", max_iter=1000, random_state=RANDOM_STATE
-        #    ),
-        #    {"C": get("LR_L1", "C", 1.0), "penalty": get("LR_L1", "penalty", "l1"), "solver": get("LR_L1", "solver", "saga")},
-        #),
-        #(
-        #    "DT_shallow",
-        #    DecisionTreeClassifier(
-        #        max_depth=get("DT_shallow", "max_depth", 4),
-        #        class_weight="balanced", random_state=RANDOM_STATE
-        #    ),
-        #    {"max_depth": get("DT_shallow", "max_depth", 4)},
-        #),
         (
             "DT_medium",
             DecisionTreeClassifier(
                 max_depth=get("DT_medium", "max_depth", 8),
                 min_samples_leaf=get("DT_medium", "min_samples_leaf", 10),
+                criterion=get("DT_medium", "criterion", "gini"),
                 class_weight="balanced", random_state=RANDOM_STATE
             ),
-            {"max_depth": get("DT_medium", "max_depth", 8), "min_samples_leaf": get("DT_medium", "min_samples_leaf", 10)},
+            {"max_depth": get("DT_medium", "max_depth", 8), "min_samples_leaf": get("DT_medium", "min_samples_leaf", 10), "criterion": get("DT_medium", "criterion", "gini")},
         ),
-        #(
-        #    "DT_entropy",
-        #    DecisionTreeClassifier(
-        #        max_depth=get("DT_entropy", "max_depth", 8),
-        #        criterion=get("DT_entropy", "criterion", "entropy"),
-        #        class_weight="balanced", random_state=RANDOM_STATE
-        #    ),
-        #    {"max_depth": get("DT_entropy", "max_depth", 8), "criterion": get("DT_entropy", "criterion", "entropy")},
-        #),
         (
             "RF_baseline",
             RandomForestClassifier(
                 n_estimators=get("RF_baseline", "n_estimators", 200),
                 max_depth=get("RF_baseline", "max_depth", 12),
+                max_features=get("RF_baseline", "max_features", "sqrt"),
                 class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE
             ),
-            {"n_estimators": get("RF_baseline", "n_estimators", 200), "max_depth": get("RF_baseline", "max_depth", 12), "max_features": "sqrt"},
+            {"n_estimators": get("RF_baseline", "n_estimators", 200), "max_depth": get("RF_baseline", "max_depth", 12), "max_features": get("RF_baseline", "max_features", "sqrt")},
         ),
-        #(
-        #    "RF_log2_features",
-        #    RandomForestClassifier(
-        #        n_estimators=get("RF_log2_features", "n_estimators", 200),
-        #        max_depth=get("RF_log2_features", "max_depth", 12),
-        #        max_features=get("RF_log2_features", "max_features", "log2"),
-        #        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE
-        #    ),
-        #    {"n_estimators": get("RF_log2_features", "n_estimators", 200), "max_depth": get("RF_log2_features", "max_depth", 12), "max_features": get("RF_log2_features", "max_features", "log2")},
-        #),
-        #(
-        #    "RF_deep",
-        #    RandomForestClassifier(
-        #        n_estimators=get("RF_deep", "n_estimators", 300),
-        #        max_depth=get("RF_deep", "max_depth", None),
-        #        max_features=get("RF_deep", "max_features", "sqrt"),
-        #        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE
-        #    ),
-        #    {"n_estimators": get("RF_deep", "n_estimators", 300), "max_depth": get("RF_deep", "max_depth", "None"), "max_features": get("RF_deep", "max_features", "sqrt")},
-        #),
-        #(
-        #    "GradientBoosting",
-        #    GradientBoostingClassifier(
-        #        n_estimators=get("GradientBoosting", "n_estimators", 200),
-        #        learning_rate=get("GradientBoosting", "learning_rate", 0.05),
-        #        max_depth=get("GradientBoosting", "max_depth", 4),
-        #        min_samples_leaf=get("GradientBoosting", "min_samples_leaf", 10),
-        #        subsample=get("GradientBoosting", "subsample", 0.8),
-        #        random_state=RANDOM_STATE
-        #    ),
-        #    {"n_estimators": get("GradientBoosting", "n_estimators", 200), "learning_rate": get("GradientBoosting", "learning_rate", 0.05), "max_depth": get("GradientBoosting", "max_depth", 4), "subsample": get("GradientBoosting", "subsample", 0.8)},
-        #),
         (
             "XGBoost",
             XGBClassifier(
