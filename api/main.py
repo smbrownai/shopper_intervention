@@ -395,6 +395,49 @@ async def model_info():
     }
 
 
+@app.get("/model-history", tags=["Model"])
+async def model_history():
+    """Summary of every MLflow experiment run grouped by model type."""
+    try:
+        from mlflow.tracking import MlflowClient
+        client = MlflowClient()
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+        # Search all experiment runs — covers every trained model, not just
+        # registry-registered ones. Exclude the data_validation parent run.
+        experiment = client.get_experiment_by_name("shopper_purchase_prediction")
+        if experiment is None:
+            return {"models": []}
+
+        all_runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string="params.model_type != ''",
+            max_results=5000,
+        )
+
+        by_type: dict = {}
+        for run in all_runs:
+            auc = run.data.metrics.get("roc_auc")
+            model_type = run.data.params.get("model_type")
+            if not model_type or auc is None:
+                continue
+            entry = by_type.setdefault(model_type, {
+                "model_type": model_type,
+                "run_count": 0,
+                "best_roc_auc": None,
+                "best_run_id": None,
+            })
+            entry["run_count"] += 1
+            if entry["best_roc_auc"] is None or auc > entry["best_roc_auc"]:
+                entry["best_roc_auc"] = auc
+                entry["best_run_id"] = run.info.run_id
+
+        rows = sorted(by_type.values(), key=lambda r: -(r["best_roc_auc"] or 0))
+        return {"models": rows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/predict", response_model=PredictionResult, tags=["Prediction"])
 async def predict(session: SessionFeatures):
     """
