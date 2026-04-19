@@ -408,31 +408,6 @@ def main():
         )
         results.append((model_name, run_id, roc_auc, pipeline))
 
-    best = max(results, key=lambda r: r[2])
-    best_name, best_run_id, best_auc, best_pipeline = best
-
-    sorted_results = sorted(results, key=lambda r: -r[2])
-    meta = {
-        "champion": {
-            "model_name": best_name,
-            "run_id": best_run_id,
-            "roc_auc": best_auc,
-            "intervention_threshold": INTERVENTION_THRESHOLD,
-        }
-    }
-    if len(sorted_results) > 1:
-        second_best_name, second_best_run_id, second_best_auc, _ = sorted_results[1]
-        meta["challenger"] = {
-            "model_name": second_best_name,
-            "run_id": second_best_run_id,
-            "roc_auc": second_best_auc,
-            "intervention_threshold": INTERVENTION_THRESHOLD,
-        }
-    
-    meta_path = Path("models/best_model_meta.json")
-    meta_path.parent.mkdir(exist_ok=True)
-    meta_path.write_text(json.dumps(meta, indent=2))
-
     client = MlflowClient()
 
     import datetime
@@ -444,82 +419,124 @@ def main():
         "(page views, bounce rates, session duration, month, visitor type, etc.).\n\n"
         f"Sessions with P(purchase) < intervention_threshold (default {INTERVENTION_THRESHOLD}) "
         "are flagged for promotional intervention.\n\n"
-        "Champion/challenger versions are maintained so the API can A/B compare models at runtime. "
+        "Champion/challenger aliases always point to the top-2 ROC-AUC versions across ALL runs. "
         "Primary selection metric: ROC-AUC on a held-out 20% test split.\n\n"
         "Training data: UCI Online Shoppers Intention dataset (12,330 sessions, ~16% purchase rate)."
     )
 
-    # Register champion
-    champion_uri = f"runs:/{best_run_id}/model"
-    champion_mv = mlflow.register_model(champion_uri, MODEL_REGISTRY_NAME)
-
-    # Set top-level registered model description after the model is guaranteed to exist
-    client.update_registered_model(name=MODEL_REGISTRY_NAME, description=REGISTERED_MODEL_DESCRIPTION)
-    client.set_registered_model_alias(
-        MODEL_REGISTRY_NAME, "champion", champion_mv.version
-    )
-    try:
-        client.update_model_version(
-            name=MODEL_REGISTRY_NAME,
-            version=str(champion_mv.version),
-            description=(
-                f"CHAMPION — {best_name}\n\n"
-                f"Trained: {trained_at}\n"
-                f"Test ROC-AUC : {best_auc:.4f}\n"
-                f"CV ROC-AUC   : see run metrics\n"
-                f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
-                f"Data version hash: {data_version_hash or 'untracked'}\n"
-                f"MLflow run: {best_run_id}\n\n"
-                "Selected as champion by highest test ROC-AUC among all models in this training run."
-            ),
-        )
-        print(f"  ✅ Description set for champion v{champion_mv.version}")
-    except Exception as e:
-        print(f"  ⚠️  Could not set champion description: {e}")
-    meta["champion"]["version"] = champion_mv.version
-
-    # Rewrite meta with version included
-    meta_path.write_text(json.dumps(meta, indent=2))
-    print(f"✅ Champion registered: v{champion_mv.version} ({best_name})")
-
-    # Register challenger (if exists)
-    if "challenger" in meta:
-        challenger_run_id = meta["challenger"]["run_id"]
-        challenger_name = meta["challenger"]["model_name"]
-        challenger_auc = meta["challenger"]["roc_auc"]
-        challenger_uri = f"runs:/{challenger_run_id}/model"
-        challenger_mv = mlflow.register_model(challenger_uri, MODEL_REGISTRY_NAME)
-        client.set_registered_model_alias(
-            MODEL_REGISTRY_NAME, "challenger", challenger_mv.version
-        )
+    # --- Register ALL models from this run so they are searchable globally ---
+    print("\n📦 Registering all models from this run...")
+    current_versions = []
+    for name, run_id_i, auc_i, _ in results:
+        uri = f"runs:/{run_id_i}/model"
+        mv = mlflow.register_model(uri, MODEL_REGISTRY_NAME)
         try:
             client.update_model_version(
                 name=MODEL_REGISTRY_NAME,
-                version=str(challenger_mv.version),
+                version=str(mv.version),
                 description=(
-                    f"CHALLENGER — {challenger_name}\n\n"
+                    f"{name}\n\n"
                     f"Trained: {trained_at}\n"
-                    f"Test ROC-AUC : {challenger_auc:.4f}\n"
-                    f"CV ROC-AUC   : see run metrics\n"
+                    f"Test ROC-AUC : {auc_i:.4f}\n"
                     f"Intervention threshold: P(purchase) < {INTERVENTION_THRESHOLD}\n"
                     f"Data version hash: {data_version_hash or 'untracked'}\n"
-                    f"MLflow run: {challenger_run_id}\n\n"
-                    f"Second-best ROC-AUC in this training run. Champion is v{champion_mv.version} ({best_name}, AUC={best_auc:.4f})."
+                    f"MLflow run: {run_id_i}"
                 ),
             )
-            print(f"  ✅ Description set for challenger v{challenger_mv.version}")
+        except Exception as e:
+            print(f"  ⚠️  Could not set description for v{mv.version}: {e}")
+        current_versions.append((name, run_id_i, auc_i, mv.version))
+        print(f"  Registered v{mv.version}: {name} (ROC-AUC={auc_i:.4f})")
+
+    client.update_registered_model(name=MODEL_REGISTRY_NAME, description=REGISTERED_MODEL_DESCRIPTION)
+
+    # --- Find global champion/challenger across ALL registered versions ---
+    print("\n🔍 Scanning all registered versions for global champion/challenger...")
+    all_versions = client.search_model_versions(f"name='{MODEL_REGISTRY_NAME}'")
+    version_aucs = []
+    for v in all_versions:
+        try:
+            run = client.get_run(v.run_id)
+            auc = run.data.metrics.get("roc_auc")
+            model_type = run.data.params.get("model_type", "unknown")
+            if auc is not None:
+                version_aucs.append({
+                    "version": int(v.version),
+                    "run_id": v.run_id,
+                    "roc_auc": auc,
+                    "model_name": model_type,
+                })
+        except Exception:
+            pass
+
+    version_aucs.sort(key=lambda x: -x["roc_auc"])
+
+    meta_path = Path("models/best_model_meta.json")
+    meta_path.parent.mkdir(exist_ok=True)
+    meta = {}
+
+    if version_aucs:
+        champ = version_aucs[0]
+        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "champion", str(champ["version"]))
+        try:
+            client.update_model_version(
+                name=MODEL_REGISTRY_NAME,
+                version=str(champ["version"]),
+                description=(
+                    f"CHAMPION — {champ['model_name']}\n\n"
+                    f"Aliased: {trained_at}\n"
+                    f"Test ROC-AUC : {champ['roc_auc']:.4f}\n"
+                    f"MLflow run: {champ['run_id']}\n\n"
+                    "Global champion: highest ROC-AUC across all registered versions."
+                ),
+            )
+        except Exception as e:
+            print(f"  ⚠️  Could not set champion description: {e}")
+        meta["champion"] = {
+            "model_name": champ["model_name"],
+            "run_id": champ["run_id"],
+            "roc_auc": champ["roc_auc"],
+            "version": champ["version"],
+            "intervention_threshold": INTERVENTION_THRESHOLD,
+        }
+        print(f"✅ Global champion: v{champ['version']} ({champ['model_name']}, ROC-AUC={champ['roc_auc']:.4f})")
+
+    if len(version_aucs) > 1:
+        chal = version_aucs[1]
+        client.set_registered_model_alias(MODEL_REGISTRY_NAME, "challenger", str(chal["version"]))
+        try:
+            client.update_model_version(
+                name=MODEL_REGISTRY_NAME,
+                version=str(chal["version"]),
+                description=(
+                    f"CHALLENGER — {chal['model_name']}\n\n"
+                    f"Aliased: {trained_at}\n"
+                    f"Test ROC-AUC : {chal['roc_auc']:.4f}\n"
+                    f"MLflow run: {chal['run_id']}\n\n"
+                    f"Global challenger: second-highest ROC-AUC across all registered versions. "
+                    f"Champion is v{version_aucs[0]['version']} ({version_aucs[0]['model_name']}, AUC={version_aucs[0]['roc_auc']:.4f})."
+                ),
+            )
         except Exception as e:
             print(f"  ⚠️  Could not set challenger description: {e}")
-        print(f"✅ Challenger registered: v{challenger_mv.version} ({challenger_name})")
+        meta["challenger"] = {
+            "model_name": chal["model_name"],
+            "run_id": chal["run_id"],
+            "roc_auc": chal["roc_auc"],
+            "version": chal["version"],
+            "intervention_threshold": INTERVENTION_THRESHOLD,
+        }
+        print(f"✅ Global challenger: v{chal['version']} ({chal['model_name']}, ROC-AUC={chal['roc_auc']:.4f})")
     
     print(f"✅ Model metadata saved → {meta_path}")
-    
-    print("\n📊 Model Leaderboard (Test ROC-AUC):")
-    print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Run ID'}")
-    print(f"  {'-'*22} {'-'*10}  {'-'*36}")
-    for name, run_id, auc, _ in sorted(results, key=lambda r: -r[2]):
-        marker = " ← best" if name == best_name else ""
-        print(f"  {name:<22} {auc:>10.4f}  {run_id}{marker}")
+
+    print("\n📊 This Run — Leaderboard (Test ROC-AUC):")
+    print(f"  {'Model':<22} {'ROC-AUC':>10}  {'Version':>8}  {'Run ID'}")
+    print(f"  {'-'*22} {'-'*10}  {'-'*8}  {'-'*36}")
+    for name, run_id_i, auc_i, version_i in sorted(current_versions, key=lambda r: -r[2]):
+        champ_marker = " ← global champion" if meta.get("champion", {}).get("version") == version_i else ""
+        chal_marker  = " ← global challenger" if meta.get("challenger", {}).get("version") == version_i else ""
+        print(f"  {name:<22} {auc_i:>10.4f}  v{version_i:>7}  {run_id_i}{champ_marker}{chal_marker}")
 
     print(f"\n✅ Training complete.")
 

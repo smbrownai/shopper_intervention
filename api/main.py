@@ -395,6 +395,46 @@ async def model_info():
     }
 
 
+@app.get("/model-history", tags=["Model"])
+async def model_history():
+    """Summary of all registered model versions grouped by model type."""
+    try:
+        from mlflow.tracking import MlflowClient
+        client = MlflowClient()
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        all_versions = client.search_model_versions(f"name='{MODEL_REGISTRY_NAME}'")
+
+        # Collect per-version data
+        by_type: dict = {}
+        for v in all_versions:
+            try:
+                run = client.get_run(v.run_id)
+                auc = run.data.metrics.get("roc_auc")
+                model_type = run.data.params.get("model_type", "unknown")
+                if auc is None or model_type == "unknown":
+                    continue
+                version_int = int(v.version)
+                entry = by_type.setdefault(model_type, {
+                    "model_type": model_type,
+                    "run_count": 0,
+                    "best_roc_auc": None,
+                    "best_version": None,
+                    "best_run_id": None,
+                })
+                entry["run_count"] += 1
+                if entry["best_roc_auc"] is None or auc > entry["best_roc_auc"]:
+                    entry["best_roc_auc"] = auc
+                    entry["best_version"] = version_int
+                    entry["best_run_id"] = v.run_id
+            except Exception:
+                continue
+
+        rows = sorted(by_type.values(), key=lambda r: -(r["best_roc_auc"] or 0))
+        return {"models": rows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/predict", response_model=PredictionResult, tags=["Prediction"])
 async def predict(session: SessionFeatures):
     """

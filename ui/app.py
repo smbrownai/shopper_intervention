@@ -890,22 +890,26 @@ with tab4:
 
 with tab5:
     st.header("🔁 Retrain Model")
-    st.caption("ModelOps: close the retraining loop — adjust hyperparameters, trigger a new run, and promote the best result to champion in the MLflow registry.")
+    st.caption("ModelOps: close the retraining loop — adjust hyperparameters, trigger a new run, and let the pipeline promote the global best to champion automatically.")
 
-    # Current model info
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        try:
-            info = requests.get(f"{API_URL}/model-info").json()
-            champion = info.get("champion", {})
-            st.metric("Current Model", champion.get("model_name", "—"))
-            st.metric("ROC-AUC", f"{champion.get('roc_auc', 0):.4f}")
-            st.metric("Version", champion.get("version", "—"))
-        except Exception:
-            st.caption("⚠️ Could not reach API")
-
-    with col2:
-        st.warning("⚠️ Retraining replaces the champion model if the new run scores higher. Note: Each training run updates two sources — a local metadata file (best_model_meta.json) that powers this dashboard, and the MLflow Model Registry on DagHub where champion and challenger versions are tagged with aliases for lineage tracking. These are kept in sync automatically by the training pipeline, but manual changes in the MLflow Registry will not be reflected here until the next training run.")
+    # --- All-time model history table ---
+    st.subheader("All-Time Model Leaderboard")
+    st.caption("Champion and challenger are always the top-2 ROC-AUC versions across every run ever. Retraining only updates them if the new run beats the existing records.")
+    try:
+        history = requests.get(f"{API_URL}/model-history", timeout=10).json()
+        rows = history.get("models", [])
+        if rows:
+            import pandas as pd
+            df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_version", "best_run_id"]]
+            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Version", "Best Run ID"]
+            df["Best ROC-AUC"] = df["Best ROC-AUC"].map(lambda x: f"{x:.4f}" if x else "—")
+            df["Best Version"] = df["Best Version"].map(lambda x: f"v{x}" if x else "—")
+            df["Best Run ID"] = df["Best Run ID"].map(lambda x: x[:8] + "…" if x else "—")
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No model history found yet.")
+    except Exception:
+        st.warning("⚠️ Could not load model history from API.")
 
     overrides = {}
     
