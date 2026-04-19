@@ -883,6 +883,9 @@ with tab4:
                 json={"target_wdr": target_wdr_pct / 100},
                 timeout=60,
             )
+            if not raw.text.strip():
+                st.error(f"❌ Empty response from API (HTTP {raw.status_code}). The server may still be warming up — wait 30 seconds and try again.")
+                st.stop()
             resp = raw.json()
             if "detail" in resp:
                 st.error(f"❌ API error: {resp['detail']}")
