@@ -481,6 +481,8 @@ async def recommend_threshold(payload: dict):
         import pandas as pd
 
         data_path = ROOT / "data" / "online_shoppers_intention.csv"
+        if not data_path.exists():
+            data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
         df = pd.read_csv(data_path)
         y = df["Revenue"].astype(int).values
         X = df.drop(columns=["Revenue"])
