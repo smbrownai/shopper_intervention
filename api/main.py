@@ -55,13 +55,19 @@ threshold_config = {
 }
 
 def _fetch_run_metrics(client, run_id: str) -> dict:
-    """Fetch f1 and precision from an MLflow run; return empty dict on failure."""
+    """Fetch metrics and WDR params from an MLflow run; return empty dict on failure."""
     try:
         run = client.get_run(run_id)
         m = run.data.metrics
+        p = run.data.params
         return {
             "f1": m.get("f1"),
             "precision": m.get("precision"),
+            "wasted_discount_rate": m.get("wasted_discount_rate"),
+            "intervention_count": m.get("intervention_count"),
+            "wdr_mode": p.get("wdr_mode"),
+            "wdr_lower": float(p["wdr_lower"]) if p.get("wdr_lower") is not None else None,
+            "wdr_upper": float(p["wdr_upper"]) if p.get("wdr_upper") is not None else None,
         }
     except Exception:
         return {}

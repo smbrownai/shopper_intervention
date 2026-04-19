@@ -798,27 +798,32 @@ with tab4:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
         champion = info.get("champion", {})
 
-        def _wasted_discount(precision):
-            if precision is None:
-                return None
-            return 1.0 - precision
-
         def _fmt(val, pct=False):
             if val is None:
                 return "—"
             return f"{val:.2%}" if pct else f"{val:.4f}"
 
+        def _wdr_label(model):
+            mode = model.get("wdr_mode")
+            lower = model.get("wdr_lower")
+            upper = model.get("wdr_upper")
+            if mode == "range" and lower is not None and upper is not None:
+                return f"Wasted Discount ({lower:.0%}–{upper:.0%})"
+            elif lower is not None:
+                return f"Wasted Discount (<{lower:.0%})"
+            return "Wasted Discount"
+
         st.success(f"Champion Model: **{champion.get('model_name', '—')}**")
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("ROC-AUC", _fmt(champion.get("roc_auc")))
         col2.metric("F1 Score", _fmt(champion.get("f1")))
-        col3.metric("Wasted Discount", _fmt(_wasted_discount(champion.get("precision")), pct=True))
+        col3.metric(_wdr_label(champion), _fmt(champion.get("wasted_discount_rate"), pct=True))
         col4.metric("Model Type", champion.get("model_name", "—"))
         if threshold_data["mode"] == "range":
             col5.metric("Threshold", f"{threshold_data['lower']:.0%} – {threshold_data['upper']:.0%}")
         else:
             col5.metric("Threshold", f"{threshold_data['lower']:.0%}")
-        st.caption(f"MLflow run ID: `{champion.get('run_id', '—')}` · Wasted Discount = 1 − Precision: share of flagged sessions that would have purchased anyway")
+        st.caption(f"MLflow run ID: `{champion.get('run_id', '—')}` · Wasted Discount: share of intervened sessions that would have purchased anyway (computed at training-time threshold)")
 
         if info.get("challenger"):
             st.divider()
@@ -828,7 +833,7 @@ with tab4:
             c1.metric("Model Type", ch.get("model_name", "—"))
             c2.metric("ROC-AUC", _fmt(ch.get("roc_auc")))
             c3.metric("F1 Score", _fmt(ch.get("f1")))
-            c4.metric("Wasted Discount", _fmt(_wasted_discount(ch.get("precision")), pct=True))
+            c4.metric(_wdr_label(ch), _fmt(ch.get("wasted_discount_rate"), pct=True))
     except Exception:
         st.warning("Could not load model info from API.")
 
@@ -837,11 +842,12 @@ with tab4:
     st.markdown("""
     1. **Every browser session** is scored by the model in real time (via the FastAPI endpoint).
     2. The model outputs **P(purchase)** — a probability between 0 and 1.
-    3. If **P(purchase) < threshold** (default 30%), the session is flagged for **intervention**.
+    3. The session is flagged for **intervention** based on the active threshold mode:
+       - **Single threshold:** intervene if P(purchase) < lower bound (e.g. < 30%)
+       - **Range mode:** intervene if P(purchase) falls within the band (e.g. 30%–70%), targeting on-the-fence shoppers while skipping near-certain buyers above the upper bound
     4. The intervention system shows the user a **promotional incentive** (coupon, free shipping, etc.)
        to convert the session into a purchase.
-    5. The threshold can be tuned: a **lower threshold** is more conservative (fewer interventions),
-       a **higher threshold** catches more at-risk sessions (but may waste promotions on buyers who would have purchased anyway).
+    5. **Wasted Discount Rate** measures the fraction of interventions given to sessions that would have purchased anyway — lower is better. It is computed at training time using whichever threshold mode was active.
     """)
 
     st.subheader("Class Imbalance Note")
