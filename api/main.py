@@ -47,6 +47,9 @@ pipeline_challenger = None
 model_meta = {}
 challenger_meta = {}
 
+# Cache for threshold optimizer — invalidated when load_model() is called
+_optimizer_cache: dict = {}  # keys: "y", "y_prob"
+
 # Runtime threshold config
 threshold_config = {
     "mode": "lower",
@@ -75,6 +78,7 @@ def _fetch_run_metrics(client, run_id: str) -> dict:
 
 def load_model():
     global pipeline, pipeline_challenger, model_meta, challenger_meta, threshold_config
+    _optimizer_cache.clear()  # invalidate scored probabilities after model reload
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -480,13 +484,16 @@ async def recommend_threshold(payload: dict):
         import numpy as np
         import pandas as pd
 
-        data_path = ROOT / "data" / "online_shoppers_intention.csv"
-        if not data_path.exists():
-            data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
-        df = pd.read_csv(data_path)
-        y = df["Revenue"].astype(int).values
-        X = df.drop(columns=["Revenue"])
-        y_prob = pipeline.predict_proba(X)[:, 1]
+        if "y_prob" not in _optimizer_cache:
+            data_path = ROOT / "data" / "online_shoppers_intention.csv"
+            if not data_path.exists():
+                data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
+            df = pd.read_csv(data_path)
+            _optimizer_cache["y"] = df["Revenue"].astype(int).values
+            _optimizer_cache["y_prob"] = pipeline.predict_proba(df.drop(columns=["Revenue"]))[:, 1]
+
+        y = _optimizer_cache["y"]
+        y_prob = _optimizer_cache["y_prob"]
 
         thresholds = np.linspace(0.05, 0.95, 181)  # 0.5% steps
 
