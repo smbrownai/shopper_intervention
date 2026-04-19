@@ -195,7 +195,7 @@ def compute_metrics(y_true, y_pred, y_prob):
     }
 
 
-def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy="median", excluded_features=None):
+def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy="median", excluded_features=None, threshold_config=None):
     """Train one model, log to MLflow, return (run_id, roc_auc, pipeline)."""
     print(f"\n{'='*60}")
     print(f"  Training: {model_name}")
@@ -242,10 +242,20 @@ def train_and_log(model_name, estimator, params, X_train, X_test, y_train, y_tes
         mlflow.log_metric("cv_roc_auc_mean", cv_scores.mean())
         mlflow.log_metric("cv_roc_auc_std", cv_scores.std())
 
-        interventions = y_prob < INTERVENTION_THRESHOLD
+        tc = threshold_config or {"mode": "lower", "lower": INTERVENTION_THRESHOLD, "upper": 1.0}
+        wdr_mode = tc.get("mode", "lower")
+        wdr_lower = tc.get("lower", INTERVENTION_THRESHOLD)
+        wdr_upper = tc.get("upper", 1.0)
+        if wdr_mode == "range":
+            interventions = (y_prob >= wdr_lower) & (y_prob <= wdr_upper)
+        else:
+            interventions = y_prob < wdr_lower
         wasted_discounts = interventions & (y_test.values == 1)
-        wasted_discount_rate = wasted_discounts.sum() / interventions.sum() if interventions.sum() > 0 else 0
+        n_interventions = interventions.sum()
+        wasted_discount_rate = wasted_discounts.sum() / n_interventions if n_interventions > 0 else 0
         mlflow.log_metric("wasted_discount_rate", wasted_discount_rate)
+        mlflow.log_metric("intervention_count", int(n_interventions))
+        mlflow.log_params({"wdr_mode": wdr_mode, "wdr_lower": wdr_lower, "wdr_upper": wdr_upper})
 
         # Confusion matrix as artifact
         cm = confusion_matrix(y_test, y_pred)
@@ -367,6 +377,13 @@ def main():
     numeric_imputer_strategy = preprocessor_overrides.get("numeric_imputer_strategy", "median")
     excluded_features = preprocessor_overrides.get("excluded_features", [])
     drop_duplicates = preprocessor_overrides.get("drop_duplicates", False)
+
+    threshold_overrides = overrides.get("_threshold", {})
+    threshold_config = {
+        "mode": threshold_overrides.get("mode", "lower"),
+        "lower": threshold_overrides.get("lower", INTERVENTION_THRESHOLD),
+        "upper": threshold_overrides.get("upper", 1.0),
+    }
     preprocessor = build_preprocessor(
         numeric_imputer_strategy=numeric_imputer_strategy,
         excluded_features=excluded_features
@@ -387,7 +404,7 @@ def main():
     results = []
     for model_name, estimator, params in model_configs:
         run_id, roc_auc, pipeline = train_and_log(
-            model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy=numeric_imputer_strategy, excluded_features=excluded_features,
+            model_name, estimator, params, X_train, X_test, y_train, y_test, preprocessor, numeric_imputer_strategy=numeric_imputer_strategy, excluded_features=excluded_features, threshold_config=threshold_config,
         )
         results.append((model_name, run_id, roc_auc, pipeline))
 
