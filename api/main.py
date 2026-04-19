@@ -466,84 +466,81 @@ async def predict_batch(batch: BatchRequest):
 @app.post("/recommend-threshold", tags=["Config"])
 async def recommend_threshold(payload: dict):
     """
-    Given a target WDR, sweep thresholds on the full dataset and return
-    the threshold (or range) that comes closest without exceeding the target.
+    Given a target WDR, sweep both single and range modes and return
+    whichever achieves the target WDR with the most intervention coverage.
 
-    Body: { "target_wdr": 0.20, "mode": "single" | "range" }
+    Body: { "target_wdr": 0.20 }
     """
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     target_wdr = float(payload.get("target_wdr", 0.30))
-    mode = payload.get("mode", "single")
 
     try:
         import numpy as np
         import pandas as pd
-        from scripts.features import build_preprocessor
 
         data_path = ROOT / "data" / "online_shoppers_intention.csv"
         df = pd.read_csv(data_path)
         y = df["Revenue"].astype(int).values
         X = df.drop(columns=["Revenue"])
-
         y_prob = pipeline.predict_proba(X)[:, 1]
 
         thresholds = np.linspace(0.05, 0.95, 181)  # 0.5% steps
 
-        if mode == "single":
-            best_threshold = None
-            best_diff = float("inf")
-            best_wdr = None
-            best_n = 0
+        def _best_single():
+            """Highest-coverage single threshold that meets target WDR."""
+            candidates = []
             for t in thresholds:
                 mask = y_prob < t
-                n = mask.sum()
+                n = int(mask.sum())
                 if n == 0:
                     continue
-                wdr = (mask & (y == 1)).sum() / n
-                diff = abs(wdr - target_wdr)
-                # prefer the threshold closest to target that doesn't exceed it,
-                # or if none exist under target, the closest above
-                if diff < best_diff or (wdr <= target_wdr and (best_wdr is None or best_wdr > target_wdr)):
-                    best_diff = diff
-                    best_threshold = float(t)
-                    best_wdr = float(wdr)
-                    best_n = int(n)
-            return {
-                "mode": "single",
-                "recommended_lower": round(best_threshold, 3) if best_threshold else None,
-                "achieved_wdr": round(best_wdr, 4) if best_wdr is not None else None,
-                "intervention_count": best_n,
-                "target_wdr": target_wdr,
-            }
+                wdr = float((mask & (y == 1)).sum() / n)
+                candidates.append((t, wdr, n))
+            # prefer those that meet target (wdr ≤ target), maximise coverage
+            meeting = [(t, w, n) for t, w, n in candidates if w <= target_wdr]
+            if meeting:
+                t, w, n = max(meeting, key=lambda x: x[2])
+            else:
+                # none meets target — pick closest
+                t, w, n = min(candidates, key=lambda x: abs(x[1] - target_wdr))
+            return {"mode": "single", "recommended_lower": round(float(t), 3),
+                    "recommended_upper": None, "achieved_wdr": round(w, 4), "intervention_count": n}
 
-        else:  # range mode — fix lower at 0.30, sweep upper
+        def _best_range():
+            """Fix lower=0.30, sweep upper; highest-coverage range that meets target WDR."""
             lower = 0.30
-            best_upper = None
-            best_diff = float("inf")
-            best_wdr = None
-            best_n = 0
+            candidates = []
             for upper in thresholds[thresholds > lower]:
                 mask = (y_prob >= lower) & (y_prob <= upper)
-                n = mask.sum()
+                n = int(mask.sum())
                 if n == 0:
                     continue
-                wdr = (mask & (y == 1)).sum() / n
-                diff = abs(wdr - target_wdr)
-                if diff < best_diff or (wdr <= target_wdr and (best_wdr is None or best_wdr > target_wdr)):
-                    best_diff = diff
-                    best_upper = float(upper)
-                    best_wdr = float(wdr)
-                    best_n = int(n)
-            return {
-                "mode": "range",
-                "recommended_lower": lower,
-                "recommended_upper": round(best_upper, 3) if best_upper else None,
-                "achieved_wdr": round(best_wdr, 4) if best_wdr is not None else None,
-                "intervention_count": best_n,
-                "target_wdr": target_wdr,
-            }
+                wdr = float((mask & (y == 1)).sum() / n)
+                candidates.append((upper, wdr, n))
+            meeting = [(u, w, n) for u, w, n in candidates if w <= target_wdr]
+            if meeting:
+                u, w, n = max(meeting, key=lambda x: x[2])
+            else:
+                u, w, n = min(candidates, key=lambda x: abs(x[1] - target_wdr))
+            return {"mode": "range", "recommended_lower": lower,
+                    "recommended_upper": round(float(u), 3), "achieved_wdr": round(w, 4), "intervention_count": n}
+
+        single = _best_single()
+        rng = _best_range()
+
+        # Pick the mode that meets the target; if both do, pick higher coverage.
+        # If neither does, pick the one closest to target.
+        def _score(r):
+            meets = r["achieved_wdr"] <= target_wdr
+            return (meets, r["intervention_count"] if meets else -abs(r["achieved_wdr"] - target_wdr))
+
+        best = single if _score(single) >= _score(rng) else rng
+        best["target_wdr"] = target_wdr
+        best["single"] = single
+        best["range"] = rng
+        return best
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
