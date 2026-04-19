@@ -797,11 +797,25 @@ with tab4:
     try:
         info = requests.get(f"{API_URL}/model-info", timeout=5).json()
         champion = info.get("champion", {})
+        challenger = info.get("challenger")
 
         def _fmt(val, pct=False):
             if val is None:
                 return "—"
             return f"{val:.2%}" if pct else f"{val:.4f}"
+
+        def _threshold_str(model):
+            mode = model.get("wdr_mode")
+            lower = model.get("wdr_lower")
+            upper = model.get("wdr_upper")
+            if mode == "range" and lower is not None and upper is not None:
+                return f"{lower:.0%} – {upper:.0%}"
+            elif lower is not None:
+                return f"< {lower:.0%}"
+            # fall back to live threshold config
+            if threshold_data["mode"] == "range":
+                return f"{threshold_data['lower']:.0%} – {threshold_data['upper']:.0%}"
+            return f"< {threshold_data['lower']:.0%}"
 
         def _wdr_label(model):
             mode = model.get("wdr_mode")
@@ -810,30 +824,38 @@ with tab4:
             if mode == "range" and lower is not None and upper is not None:
                 return f"Wasted Discount ({lower:.0%}–{upper:.0%})"
             elif lower is not None:
-                return f"Wasted Discount (<{lower:.0%})"
+                return f"Wasted Discount (< {lower:.0%})"
             return "Wasted Discount"
 
-        st.success(f"Champion Model: **{champion.get('model_name', '—')}**")
-        col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("ROC-AUC", _fmt(champion.get("roc_auc")))
-        col2.metric("F1 Score", _fmt(champion.get("f1")))
-        col3.metric(_wdr_label(champion), _fmt(champion.get("wasted_discount_rate"), pct=True))
-        col4.metric("Model Type", champion.get("model_name", "—"))
-        if threshold_data["mode"] == "range":
-            col5.metric("Threshold", f"{threshold_data['lower']:.0%} – {threshold_data['upper']:.0%}")
-        else:
-            col5.metric("Threshold", f"{threshold_data['lower']:.0%}")
-        st.caption(f"MLflow run ID: `{champion.get('run_id', '—')}` · Wasted Discount: share of intervened sessions that would have purchased anyway (computed at training-time threshold)")
+        def _model_card(col, role, model):
+            badge = "🏆 Champion" if role == "champion" else "🥊 Challenger"
+            rows = [
+                ("Role",               badge),
+                ("Model Type",         model.get("model_name", "—")),
+                ("ROC-AUC",            _fmt(model.get("roc_auc"))),
+                ("F1 Score",           _fmt(model.get("f1"))),
+                ("Precision",          _fmt(model.get("precision"), pct=True)),
+                ("Threshold",          _threshold_str(model)),
+                (_wdr_label(model),    _fmt(model.get("wasted_discount_rate"), pct=True)),
+            ]
+            with col:
+                for label, value in rows:
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:space-between;"
+                        f"padding:6px 10px;border-bottom:1px solid rgba(128,128,128,0.2)'>"
+                        f"<span style='color:gray;font-size:0.85rem'>{label}</span>"
+                        f"<span style='font-weight:600'>{value}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.caption(f"MLflow run: `{model.get('run_id', '—')}`")
 
-        if info.get("challenger"):
-            st.divider()
-            st.subheader("Challenger Model")
-            ch = info["challenger"]
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Model Type", ch.get("model_name", "—"))
-            c2.metric("ROC-AUC", _fmt(ch.get("roc_auc")))
-            c3.metric("F1 Score", _fmt(ch.get("f1")))
-            c4.metric(_wdr_label(ch), _fmt(ch.get("wasted_discount_rate"), pct=True))
+        cols = st.columns(2) if challenger else st.columns([1, 1])
+        _model_card(cols[0], "champion", champion)
+        if challenger:
+            _model_card(cols[1], "challenger", challenger)
+
+        st.caption("Wasted Discount: share of intervened sessions that would have purchased anyway — computed at training-time threshold.")
+
     except Exception:
         st.warning("Could not load model info from API.")
 
