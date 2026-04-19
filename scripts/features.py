@@ -41,9 +41,6 @@ TARGET = "Revenue"
 
 ALL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 
-# Month ordering for ordinal encoding (not used here — OHE handles it fine)
-MONTH_ORDER = ["Feb", "Mar", "May", "Jun", "June", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 
 def validate_data(df: pd.DataFrame) -> dict:
     """

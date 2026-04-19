@@ -7,3 +7,6 @@ mlartifacts/
 *.egg-info/
 .DS_Store
 ui/.synth_stats_cache.json
+.vs/
+.vscode/
+.idea/
