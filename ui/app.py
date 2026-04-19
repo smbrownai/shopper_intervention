@@ -859,6 +859,44 @@ with tab4:
     except Exception:
         st.warning("Could not load model info from API.")
 
+    # --- Threshold Optimizer ---
+    st.divider()
+    st.subheader("Threshold Optimizer")
+    st.caption("Find the threshold that achieves a target Wasted Discount Rate on the full dataset using the current champion model.")
+
+    opt_col1, opt_col2, opt_col3 = st.columns([1, 1, 1])
+    with opt_col1:
+        target_wdr = st.slider("Target WDR", 0.05, 0.75, 0.20, step=0.01, format="%.0f%%",
+                               help="The maximum share of discounts you're willing to waste on customers who would have purchased anyway.")
+    with opt_col2:
+        opt_mode = st.radio("Mode", ["single", "range"], horizontal=True,
+                            help="Single: find the best lower cutoff (intervene if P < threshold). Range: fix lower at 30% and find the best upper cutoff.")
+    with opt_col3:
+        st.write("")
+        st.write("")
+        run_optimizer = st.button("🎯 Find Best Threshold")
+
+    if run_optimizer:
+        try:
+            resp = requests.post(
+                f"{API_URL}/recommend-threshold",
+                json={"target_wdr": target_wdr, "mode": opt_mode},
+                timeout=30,
+            ).json()
+            r_col1, r_col2, r_col3 = st.columns(3)
+            if opt_mode == "single":
+                r_col1.metric("Recommended Threshold", f"< {resp['recommended_lower']:.0%}")
+            else:
+                r_col1.metric("Recommended Range", f"{resp['recommended_lower']:.0%} – {resp['recommended_upper']:.0%}")
+            r_col2.metric("Achieved WDR", f"{resp['achieved_wdr']:.1%}")
+            r_col3.metric("Sessions Intervened", f"{resp['intervention_count']:,}")
+            if resp["achieved_wdr"] <= target_wdr:
+                st.success(f"✅ Threshold meets your target WDR of {target_wdr:.0%}.")
+            else:
+                st.warning(f"⚠️ Closest achievable WDR is {resp['achieved_wdr']:.1%} — no threshold exactly meets {target_wdr:.0%} with this model.")
+        except Exception as e:
+            st.error(f"Could not reach API: {e}")
+
     st.divider()
     st.subheader("How the Intervention Works")
     st.markdown("""
@@ -891,24 +929,6 @@ with tab4:
 with tab5:
     st.header("🔁 Retrain Model")
     st.caption("ModelOps: close the retraining loop — adjust hyperparameters, trigger a new run, and let the pipeline promote the global best to champion automatically.")
-
-    # --- All-time model history table ---
-    st.subheader("All-Time Model Leaderboard")
-    st.caption("Champion and challenger are always the top-2 ROC-AUC versions across every run ever. Retraining only updates them if the new run beats the existing records.")
-    try:
-        history = requests.get(f"{API_URL}/model-history", timeout=10).json()
-        rows = history.get("models", [])
-        if rows:
-            import pandas as pd
-            df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_run_id"]]
-            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Run ID"]
-            df["Best ROC-AUC"] = df["Best ROC-AUC"].map(lambda x: f"{x:.4f}" if x else "—")
-            df["Best Run ID"] = df["Best Run ID"].map(lambda x: x[:8] + "…" if x else "—")
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No model history found yet.")
-    except Exception:
-        st.warning("⚠️ Could not load model history from API.")
 
     overrides = {}
     
@@ -1019,3 +1039,21 @@ with tab5:
                 #st.balloons()
             else:
                 st.error(f"❌ Training failed: {status['last_result']}")
+
+    # --- All-time model history table (bottom of page) ---
+    st.divider()
+    st.subheader("All-Time Model Leaderboard")
+    st.caption("Champion and challenger are always the top-2 ROC-AUC versions across every run ever. Retraining only updates them if the new run beats the existing records.")
+    try:
+        history = requests.get(f"{API_URL}/model-history", timeout=10).json()
+        rows = history.get("models", [])
+        if rows:
+            import pandas as pd
+            df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_run_id"]]
+            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Run ID"]
+            df["Best ROC-AUC"] = df["Best ROC-AUC"].map(lambda x: f"{x:.4f}" if x else "—")
+            st.table(df)
+        else:
+            st.info("No model history found yet.")
+    except Exception:
+        st.warning("⚠️ Could not load model history from API.")
