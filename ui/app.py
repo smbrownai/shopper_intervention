@@ -958,6 +958,10 @@ with tab5:
 
     st.divider()
     if st.button("🚀 Start Retraining", type="primary"):
+        try:
+            overrides["_threshold"] = requests.get(f"{API_URL}/threshold", timeout=5).json()
+        except Exception:
+            pass
         response = requests.post(f"{API_URL}/retrain", json={"overrides": overrides})
         result = response.json()
 
