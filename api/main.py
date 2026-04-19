@@ -47,8 +47,6 @@ pipeline_challenger = None
 model_meta = {}
 challenger_meta = {}
 
-# Cache for threshold optimizer — invalidated when load_model() is called
-_optimizer_cache: dict = {}  # keys: "y", "y_prob"
 
 # Runtime threshold config
 threshold_config = {
@@ -78,7 +76,6 @@ def _fetch_run_metrics(client, run_id: str) -> dict:
 
 def load_model():
     global pipeline, pipeline_challenger, model_meta, challenger_meta, threshold_config
-    _optimizer_cache.clear()  # invalidate scored probabilities after model reload
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -134,8 +131,6 @@ def load_model():
         threshold_config.update(full_meta["threshold_config"])
 
     print(f"✅ Loaded champion model run_id='{run_id}' from {champion_uri}")
-    import threading
-    threading.Thread(target=_warm_optimizer_cache, daemon=True).start()
     
     
 # ---------------------------------------------------------------------------
@@ -158,24 +153,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-def _warm_optimizer_cache():
-    """Score the full dataset with the current pipeline and cache results.
-    Runs in a background thread so it doesn't block startup or requests."""
-    if pipeline is None or "y_prob" in _optimizer_cache:
-        return
-    try:
-        import pandas as pd
-        print("🔥 Pre-warming optimizer cache...")
-        data_path = ROOT / "data" / "online_shoppers_intention.csv"
-        if not data_path.exists():
-            data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
-        df = pd.read_csv(data_path)
-        _optimizer_cache["y"] = df["Revenue"].astype(int).values
-        _optimizer_cache["y_prob"] = pipeline.predict_proba(df.drop(columns=["Revenue"]))[:, 1]
-        print(f"✅ Optimizer cache warm — {len(_optimizer_cache['y']):,} sessions scored.")
-    except Exception as e:
-        print(f"⚠️ Optimizer cache warm failed: {e}")
 
 
 @app.on_event("startup")
@@ -487,91 +464,6 @@ async def predict_batch(batch: BatchRequest):
         intervention_count=intervention_count,
         intervention_rate=round(intervention_count / len(results), 4),
     )
-
-@app.post("/recommend-threshold", tags=["Config"])
-async def recommend_threshold(payload: dict):
-    """
-    Given a target WDR, sweep both single and range modes and return
-    whichever achieves the target WDR with the most intervention coverage.
-
-    Body: { "target_wdr": 0.20 }
-    """
-    if pipeline is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
-    target_wdr = float(payload.get("target_wdr", 0.30))
-
-    try:
-        import numpy as np
-        import pandas as pd
-
-        if "y_prob" not in _optimizer_cache:
-            raise HTTPException(
-                status_code=503,
-                detail="Optimizer cache is still warming up — please wait 30 seconds and try again.",
-            )
-
-        y = _optimizer_cache["y"]
-        y_prob = _optimizer_cache["y_prob"]
-
-        thresholds = np.linspace(0.05, 0.95, 181)  # 0.5% steps
-
-        def _best_single():
-            """Highest-coverage single threshold that meets target WDR."""
-            candidates = []
-            for t in thresholds:
-                mask = y_prob < t
-                n = int(mask.sum())
-                if n == 0:
-                    continue
-                wdr = float((mask & (y == 1)).sum() / n)
-                candidates.append((t, wdr, n))
-            # prefer those that meet target (wdr ≤ target), maximise coverage
-            meeting = [(t, w, n) for t, w, n in candidates if w <= target_wdr]
-            if meeting:
-                t, w, n = max(meeting, key=lambda x: x[2])
-            else:
-                # none meets target — pick closest
-                t, w, n = min(candidates, key=lambda x: abs(x[1] - target_wdr))
-            return {"mode": "single", "recommended_lower": round(float(t), 3),
-                    "recommended_upper": None, "achieved_wdr": round(w, 4), "intervention_count": n}
-
-        def _best_range():
-            """Fix lower=0.30, sweep upper; highest-coverage range that meets target WDR."""
-            lower = 0.30
-            candidates = []
-            for upper in thresholds[thresholds > lower]:
-                mask = (y_prob >= lower) & (y_prob <= upper)
-                n = int(mask.sum())
-                if n == 0:
-                    continue
-                wdr = float((mask & (y == 1)).sum() / n)
-                candidates.append((upper, wdr, n))
-            meeting = [(u, w, n) for u, w, n in candidates if w <= target_wdr]
-            if meeting:
-                u, w, n = max(meeting, key=lambda x: x[2])
-            else:
-                u, w, n = min(candidates, key=lambda x: abs(x[1] - target_wdr))
-            return {"mode": "range", "recommended_lower": lower,
-                    "recommended_upper": round(float(u), 3), "achieved_wdr": round(w, 4), "intervention_count": n}
-
-        single = _best_single()
-        rng = _best_range()
-
-        # Pick the mode that meets the target; if both do, pick higher coverage.
-        # If neither does, pick the one closest to target.
-        def _score(r):
-            meets = r["achieved_wdr"] <= target_wdr
-            return (meets, r["intervention_count"] if meets else -abs(r["achieved_wdr"] - target_wdr))
-
-        best = single if _score(single) >= _score(rng) else rng
-        best["target_wdr"] = target_wdr
-        best["single"] = single
-        best["range"] = rng
-        return best
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/threshold", tags=["Config"])
