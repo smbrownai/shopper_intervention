@@ -864,14 +864,14 @@ with tab4:
     st.subheader("Threshold Optimizer")
     st.caption("Find the threshold that achieves a target Wasted Discount Rate on the full dataset using the current champion model.")
 
-    opt_col1, opt_col2, opt_col3 = st.columns([1, 1, 1])
+    opt_col1, opt_col2 = st.columns([2, 1])
     with opt_col1:
-        target_wdr = st.slider("Target WDR", 0.05, 0.75, 0.20, step=0.01, format="%.0f%%",
-                               help="The maximum share of discounts you're willing to waste on customers who would have purchased anyway.")
+        target_wdr_pct = st.slider(
+            "Target WDR (%)", min_value=5, max_value=75, value=20, step=1,
+            format="%d%%",
+            help="The maximum share of discounts you're willing to waste on customers who would have purchased anyway.",
+        )
     with opt_col2:
-        opt_mode = st.radio("Mode", ["single", "range"], horizontal=True,
-                            help="Single: find the best lower cutoff (intervene if P < threshold). Range: fix lower at 30% and find the best upper cutoff.")
-    with opt_col3:
         st.write("")
         st.write("")
         run_optimizer = st.button("🎯 Find Best Threshold")
@@ -880,20 +880,27 @@ with tab4:
         try:
             resp = requests.post(
                 f"{API_URL}/recommend-threshold",
-                json={"target_wdr": target_wdr, "mode": opt_mode},
+                json={"target_wdr": target_wdr_pct / 100},
                 timeout=30,
             ).json()
             r_col1, r_col2, r_col3 = st.columns(3)
-            if opt_mode == "single":
-                r_col1.metric("Recommended Threshold", f"< {resp['recommended_lower']:.0%}")
-            else:
+            mode = resp.get("mode")
+            if mode == "range":
                 r_col1.metric("Recommended Range", f"{resp['recommended_lower']:.0%} – {resp['recommended_upper']:.0%}")
+            else:
+                r_col1.metric("Recommended Threshold", f"< {resp['recommended_lower']:.0%}")
             r_col2.metric("Achieved WDR", f"{resp['achieved_wdr']:.1%}")
             r_col3.metric("Sessions Intervened", f"{resp['intervention_count']:,}")
-            if resp["achieved_wdr"] <= target_wdr:
-                st.success(f"✅ Threshold meets your target WDR of {target_wdr:.0%}.")
+            if resp["achieved_wdr"] <= target_wdr_pct / 100:
+                st.success(
+                    f"✅ **{'Range' if mode == 'range' else 'Single threshold'}** mode recommended — "
+                    f"achieves {resp['achieved_wdr']:.1%} WDR, within your {target_wdr_pct}% target."
+                )
             else:
-                st.warning(f"⚠️ Closest achievable WDR is {resp['achieved_wdr']:.1%} — no threshold exactly meets {target_wdr:.0%} with this model.")
+                st.warning(
+                    f"⚠️ Closest achievable WDR is {resp['achieved_wdr']:.1%} — "
+                    f"no threshold meets {target_wdr_pct}% with this model. Consider retraining."
+                )
         except Exception as e:
             st.error(f"Could not reach API: {e}")
 
