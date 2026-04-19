@@ -900,10 +900,9 @@ with tab5:
         rows = history.get("models", [])
         if rows:
             import pandas as pd
-            df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_version", "best_run_id"]]
-            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Version", "Best Run ID"]
+            df = pd.DataFrame(rows)[["model_type", "run_count", "best_roc_auc", "best_run_id"]]
+            df.columns = ["Model Type", "# Runs", "Best ROC-AUC", "Best Run ID"]
             df["Best ROC-AUC"] = df["Best ROC-AUC"].map(lambda x: f"{x:.4f}" if x else "—")
-            df["Best Version"] = df["Best Version"].map(lambda x: f"v{x}" if x else "—")
             df["Best Run ID"] = df["Best Run ID"].map(lambda x: x[:8] + "…" if x else "—")
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
