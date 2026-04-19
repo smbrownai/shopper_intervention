@@ -199,10 +199,13 @@ async def retrain(request: RetrainRequest = RetrainRequest()):
                 training_status["last_result"] = "success"
                 load_model()
             else:
-                training_status["last_result"] = f"error: {result.stderr[-500:]}"
+                output = (result.stderr or "") + (result.stdout or "")
+                training_status["last_result"] = f"error: {output[-1000:] or '(no output captured)'}"
         except Exception as e:
             training_status["last_result"] = f"error: {e}"
         finally:
+            if training_status["last_result"] is None:
+                training_status["last_result"] = "error: training task ended without a result"
             training_status["running"] = False
 
     asyncio.create_task(_run())
