@@ -884,7 +884,10 @@ with tab4:
                 timeout=60,
             )
             if not raw.text.strip():
-                st.error(f"❌ Empty response from API (HTTP {raw.status_code}). The server may still be warming up — wait 30 seconds and try again.")
+                st.warning(f"⚠️ Empty response from API (HTTP {raw.status_code}). The server may be waking up — wait 30 seconds and try again.")
+                st.stop()
+            if raw.status_code == 503:
+                st.warning("⏳ Optimizer is still warming up — wait 30 seconds and try again.")
                 st.stop()
             resp = raw.json()
             if "detail" in resp:

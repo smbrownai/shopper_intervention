@@ -506,12 +506,10 @@ async def recommend_threshold(payload: dict):
         import pandas as pd
 
         if "y_prob" not in _optimizer_cache:
-            data_path = ROOT / "data" / "online_shoppers_intention.csv"
-            if not data_path.exists():
-                data_path = "https://dagshub.com/smbrownai/shopper_intervention/raw/main/data/online_shoppers_intention.csv"
-            df = pd.read_csv(data_path)
-            _optimizer_cache["y"] = df["Revenue"].astype(int).values
-            _optimizer_cache["y_prob"] = pipeline.predict_proba(df.drop(columns=["Revenue"]))[:, 1]
+            raise HTTPException(
+                status_code=503,
+                detail="Optimizer cache is still warming up — please wait 30 seconds and try again.",
+            )
 
         y = _optimizer_cache["y"]
         y_prob = _optimizer_cache["y_prob"]
